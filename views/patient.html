@@ -1,0 +1,114 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>My health · Hospital Management System</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+  <link href="/assets/css/style.css" rel="stylesheet">
+</head>
+<body class="role-patient">
+<header class="topbar">
+  <div class="container-xl d-flex align-items-center justify-content-between py-2">
+    <a class="brand" href="/patient"><svg class="logo-mark" width="34" height="34" viewBox="0 0 32 32" aria-hidden="true"><rect width="32" height="32" rx="9" fill="#fff"/><path d="M13 7h6v6h6v6h-6v6h-6v-6H7v-6h6z" fill="#c65a3a"/></svg><span data-i18n="brand.patient">Hospital Management · Patient</span></a>
+    <div class="d-flex align-items-center gap-3">
+      <div class="lang-switch" data-lang-switch></div>
+      <span class="who" id="who"></span>
+      <button class="btn btn-sm btn-light" data-action="logout" data-i18n="nav.logout">Log out</button>
+    </div>
+  </div>
+</header>
+
+<section class="hero-band"><div class="container-xl d-flex flex-wrap justify-content-between align-items-end gap-3">
+  <div><div class="hero-eyebrow" id="today"></div><h1 id="greeting"></h1><p class="hero-sub" data-i18n="hero.p.sub">What would you like to do today?</p></div>
+  <div class="d-flex flex-wrap gap-2">
+    <button class="btn btn-light" data-action="goto-tab" data-tab="t-doctors" data-i18n="book.btn">Book appointment</button>
+    <button class="btn btn-outline-light" data-action="goto-tab" data-tab="t-appts" data-i18n="tab.appts">My appointments</button>
+  </div></div></section>
+
+<main class="container-xl py-4 lift">
+  <ul class="nav app-tabs mb-4" role="tablist">
+    <li class="nav-item"><button class="nav-link active" id="t-doctors" data-bs-toggle="tab" data-bs-target="#p-doctors" type="button" role="tab" data-i18n="tab.find">Find a doctor</button></li>
+    <li class="nav-item"><button class="nav-link" id="t-appts" data-bs-toggle="tab" data-bs-target="#p-appts" type="button" role="tab" data-i18n="tab.appts">My appointments</button></li>
+    <li class="nav-item"><button class="nav-link" id="t-history" data-bs-toggle="tab" data-bs-target="#p-history" type="button" role="tab" data-i18n="tab.history">History and prescriptions</button></li>
+  </ul>
+
+  <div class="tab-content">
+    <div class="tab-pane fade show active" id="p-doctors" role="tabpanel">
+      <div class="d-flex flex-wrap align-items-center gap-2 mb-3">
+        <label class="form-label mb-0" for="dept-filter" data-i18n="dept.label">Department</label>
+        <select class="form-select w-auto" id="dept-filter"><option value="" data-i18n="dept.all">All departments</option></select>
+      </div>
+      <div class="row g-3" id="doctor-cards"></div>
+    </div>
+
+    <div class="tab-pane fade" id="p-appts" role="tabpanel">
+      <div class="panel"><div class="table-wrap"><table class="table align-middle mb-0">
+        <thead><tr><th data-i18n="th.date">Date</th><th data-i18n="th.time">Time</th><th data-i18n="th.doctor">Doctor</th><th data-i18n="th.status">Status</th><th class="text-end"></th></tr></thead>
+        <tbody id="appt-table"></tbody></table></div></div>
+    </div>
+
+    <div class="tab-pane fade" id="p-history" role="tabpanel">
+      <div class="row g-4">
+        <div class="col-lg-4">
+          <div class="panel">
+            <h2 data-i18n="rx.title">Prescriptions</h2>
+            <div class="panel-sub" data-i18n="rx.sub">Active ones are still within their course.</div>
+            <div id="rx-list"></div>
+          </div>
+        </div>
+        <div class="col-lg-8">
+          <div class="panel">
+            <h2 data-i18n="visits.title">Past visits</h2>
+            <div class="panel-sub" data-i18n="visits.sub">Diagnoses and notes from your doctors.</div>
+            <div id="visit-list"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</main>
+
+<!-- Booking modal -->
+<div class="modal fade" id="bookModal" tabindex="-1" aria-labelledby="bookTitle" aria-hidden="true">
+  <div class="modal-dialog"><form class="modal-content" id="book-form" novalidate>
+    <div class="modal-header"><h2 class="modal-title h5" id="bookTitle">Book appointment</h2><button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button></div>
+    <div class="modal-body">
+      <input type="hidden" id="b-doctor">
+      <div class="mb-3"><label class="form-label" for="b-date" data-i18n="book.date">Choose a date</label><input class="form-control" type="date" id="b-date" required></div>
+      <div class="mb-3"><div class="form-label" data-i18n="book.time">Choose a time</div>
+        <div id="b-slots" class="slot-grid" role="group" aria-label="Available times"></div>
+        <div id="b-note" class="text-muted small mt-2"></div></div>
+      <div class="mb-1"><label class="form-label" for="b-reason" data-i18n="book.reason">What is the visit for? (optional)</label><textarea class="form-control" id="b-reason" rows="2" maxlength="500"></textarea></div>
+    </div>
+    <div class="modal-footer"><button type="button" class="btn btn-light" data-bs-dismiss="modal" data-i18n="btn.cancel">Cancel</button><button type="submit" class="btn btn-primary" id="b-confirm" disabled data-i18n="btn.bookconfirm">Confirm booking</button></div>
+  </form></div>
+</div>
+
+<!-- Feedback modal -->
+<div class="modal fade" id="fbModal" tabindex="-1" aria-labelledby="fbTitle" aria-hidden="true">
+  <div class="modal-dialog"><form class="modal-content" id="fb-form" novalidate>
+    <div class="modal-header"><h2 class="modal-title h5" id="fbTitle">Rate your visit</h2><button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button></div>
+    <div class="modal-body">
+      <input type="hidden" id="f-appt">
+      <fieldset class="mb-3"><legend class="form-label fs-6" data-i18n="fb.q">How was your experience?</legend>
+        <div class="star-input">
+          <input type="radio" name="rating" id="s5" value="5"><label for="s5" title="5 stars">★</label>
+          <input type="radio" name="rating" id="s4" value="4"><label for="s4" title="4 stars">★</label>
+          <input type="radio" name="rating" id="s3" value="3"><label for="s3" title="3 stars">★</label>
+          <input type="radio" name="rating" id="s2" value="2"><label for="s2" title="2 stars">★</label>
+          <input type="radio" name="rating" id="s1" value="1"><label for="s1" title="1 star">★</label>
+        </div></fieldset>
+      <div><label class="form-label" for="f-comment" data-i18n="fb.comments">Comments (optional)</label><textarea class="form-control" id="f-comment" rows="3" maxlength="1000"></textarea></div>
+    </div>
+    <div class="modal-footer"><button type="button" class="btn btn-light" data-bs-dismiss="modal" data-i18n="btn.cancel">Cancel</button><button type="submit" class="btn btn-primary" data-i18n="fb.send">Send feedback</button></div>
+  </form></div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+<script src="/assets/js/i18n.js"></script>
+<script src="/assets/js/common.js"></script>
+<script src="/assets/js/bot.js"></script>
+<script src="/assets/js/patient.js"></script>
+</body>
+</html>

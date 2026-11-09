@@ -1,0 +1,126 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Clinical workspace · Hospital Management System</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+  <link href="/assets/css/style.css" rel="stylesheet">
+</head>
+<body class="role-doctor" data-page-i18n="off">
+<header class="topbar">
+  <div class="container-xl d-flex align-items-center justify-content-between py-2">
+    <a class="brand" href="/doctor"><svg class="logo-mark" width="34" height="34" viewBox="0 0 32 32" aria-hidden="true"><rect width="32" height="32" rx="9" fill="#fff"/><path d="M13 7h6v6h6v6h-6v6h-6v-6H7v-6h6z" fill="#c65a3a"/></svg><span>Hospital Management · Clinic</span></a>
+    <div class="d-flex align-items-center gap-3">
+      <span class="who" id="who"></span>
+      <button class="btn btn-sm btn-light" data-action="logout">Log out</button>
+    </div>
+  </div>
+</header>
+
+<section class="hero-band"><div class="container-xl">
+  <div class="hero-eyebrow" id="today"></div><h1 id="greeting"></h1><p class="hero-sub">Here is your queue and schedule for today.</p></div></section>
+
+<main class="container-xl py-4 lift">
+  <ul class="nav app-tabs mb-4" role="tablist">
+    <li class="nav-item"><button class="nav-link active" id="t-schedule" data-bs-toggle="tab" data-bs-target="#p-schedule" type="button" role="tab">Today's queue</button></li>
+    <li class="nav-item"><button class="nav-link" id="t-avail" data-bs-toggle="tab" data-bs-target="#p-avail" type="button" role="tab">Availability</button></li>
+    <li class="nav-item"><button class="nav-link" id="t-feedback" data-bs-toggle="tab" data-bs-target="#p-feedback" type="button" role="tab">Patient feedback</button></li>
+  </ul>
+
+  <div class="tab-content">
+    <!-- ============ SCHEDULE ============ -->
+    <div class="tab-pane fade show active" id="p-schedule" role="tabpanel">
+      <div class="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-3">
+        <div class="d-flex align-items-center gap-2">
+          <button class="btn btn-outline-primary btn-sm" data-action="day-prev" aria-label="Previous day">&lt;</button>
+          <input type="date" class="form-control form-control-sm w-auto" id="sched-date" aria-label="Schedule date">
+          <button class="btn btn-outline-primary btn-sm" data-action="day-next" aria-label="Next day">&gt;</button>
+          <button class="btn btn-outline-primary btn-sm" data-action="day-today">Today</button>
+        </div>
+        <div id="sched-summary" class="text-muted"></div>
+      </div>
+      <div class="panel"><div class="table-wrap"><table class="table align-middle mb-0">
+        <thead><tr><th>Queue</th><th>Time</th><th>Patient</th><th>Reason</th><th>Status</th><th class="text-end">Actions</th></tr></thead>
+        <tbody id="sched-table"></tbody></table></div></div>
+    </div>
+
+    <!-- ============ AVAILABILITY ============ -->
+    <div class="tab-pane fade" id="p-avail" role="tabpanel">
+      <div class="row g-4">
+        <div class="col-lg-8">
+          <div class="panel">
+            <div class="d-flex flex-wrap justify-content-between align-items-start gap-2 mb-2">
+              <div><h2>Working days and hours</h2><div class="panel-sub mb-0">Patients can only book inside these hours. Add two periods to leave a lunch break.</div></div>
+              <div class="d-flex align-items-center gap-2">
+                <label class="form-label mb-0" for="slot-min">Minutes per patient</label>
+                <select class="form-select form-select-sm w-auto" id="slot-min">
+                  <option>15</option><option>20</option><option>30</option><option>45</option><option>60</option>
+                </select>
+              </div>
+            </div>
+            <div id="week-grid"></div>
+            <button class="btn btn-primary mt-3" data-action="save-avail">Save working hours</button>
+          </div>
+        </div>
+        <div class="col-lg-4">
+          <div class="panel">
+            <h2>Off-days</h2>
+            <div class="panel-sub">Leave, conferences, holidays. Patients cannot book these dates.</div>
+            <form id="off-form" class="row g-2 mb-3" novalidate>
+              <div class="col-12"><label class="form-label mb-0" for="off-date">Date</label><input class="form-control" type="date" id="off-date" required></div>
+              <div class="col-12"><label class="form-label mb-0" for="off-reason">Reason (optional)</label><input class="form-control" id="off-reason"></div>
+              <div class="col-12"><button class="btn btn-outline-primary" type="submit">Add off-day</button></div>
+            </form>
+            <ul class="list-unstyled mb-0" id="off-list"></ul>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ============ FEEDBACK ============ -->
+    <div class="tab-pane fade" id="p-feedback" role="tabpanel">
+      <div class="panel">
+        <div id="fb-head" class="mb-3"></div>
+        <div id="fb-list"></div>
+      </div>
+    </div>
+  </div>
+</main>
+
+<!-- Consultation modal -->
+<div class="modal fade" id="consultModal" tabindex="-1" aria-labelledby="consultTitle" aria-hidden="true">
+  <div class="modal-dialog modal-xl modal-dialog-scrollable"><form class="modal-content" id="consult-form" novalidate>
+    <div class="modal-header"><h2 class="modal-title h5" id="consultTitle">Consultation</h2><button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button></div>
+    <div class="modal-body">
+      <div class="row g-4">
+        <div class="col-lg-5">
+          <h3 class="h6">Patient</h3>
+          <div id="c-profile" class="mb-3"></div>
+          <h3 class="h6">Previous visits</h3>
+          <div id="c-history"></div>
+        </div>
+        <div class="col-lg-7">
+          <input type="hidden" id="c-appt">
+          <div class="mb-3"><label class="form-label" for="c-diag">Diagnosis</label><input class="form-control" id="c-diag" required></div>
+          <div class="mb-3"><label class="form-label" for="c-notes">Clinical notes</label><textarea class="form-control" id="c-notes" rows="4"></textarea></div>
+          <div class="d-flex justify-content-between align-items-center mb-2">
+            <h3 class="h6 mb-0">Prescription</h3>
+            <button type="button" class="btn btn-sm btn-outline-primary" data-action="rx-add">Add medicine</button>
+          </div>
+          <div id="rx-rows"></div>
+          <p class="text-muted small mt-2 mb-0">Saving completes the visit, deducts pharmacy stock and records the consultation fee as revenue.</p>
+        </div>
+      </div>
+    </div>
+    <div class="modal-footer"><button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancel</button><button type="submit" class="btn btn-primary">Save and complete visit</button></div>
+  </form></div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+<script src="/assets/js/i18n.js"></script>
+<script src="/assets/js/common.js"></script>
+<script src="/assets/js/bot.js"></script>
+<script src="/assets/js/doctor.js"></script>
+</body>
+</html>

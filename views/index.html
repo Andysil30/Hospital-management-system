@@ -1,0 +1,112 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Sign in · Hospital Management System</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+  <link href="/assets/css/style.css" rel="stylesheet">
+</head>
+<body>
+<div class="auth">
+  <section class="auth-side" aria-label="About the system">
+    <div class="auth-brand">
+      <svg width="40" height="40" viewBox="0 0 32 32" aria-hidden="true"><rect width="32" height="32" rx="8" fill="#4ba3a1"/><path d="M13 7h6v6h6v6h-6v6h-6v-6H7v-6h6z" fill="#fff"/></svg>
+      <div><div class="auth-name">Hospital Management System</div><div class="auth-tag" data-i18n="auth.tag">Private clinic suite</div></div>
+    </div>
+
+    <div class="auth-hero">
+      <h1 data-i18n="auth.hero">Care, coordination and clarity in one place.</h1>
+      <ul class="auth-points">
+        <li><span>01</span><div><strong data-i18n="pt.patients">Patients</strong><span class="d" data-i18n="pt.patients.d"></span></div></li>
+        <li><span>02</span><div><strong data-i18n="pt.doctors">Doctors</strong><span class="d" data-i18n="pt.doctors.d"></span></div></li>
+        <li><span>03</span><div><strong data-i18n="pt.owners">Owners</strong><span class="d" data-i18n="pt.owners.d"></span></div></li>
+      </ul>
+    </div>
+
+    <div class="auth-foot" data-i18n="auth.foot"></div>
+  </section>
+
+  <main class="auth-main">
+    <div class="lang-switch auth-lang" data-lang-switch></div>
+    <div class="auth-box">
+      <h2 class="auth-title" id="auth-title" data-i18n="welcome.title">Welcome back</h2>
+      <p class="auth-sub" id="auth-sub" data-i18n="welcome.sub">Sign in to open your dashboard.</p>
+
+      <div class="seg nav" role="tablist">
+        <button class="nav-link active" id="tab-login" data-bs-toggle="pill" data-bs-target="#pane-login" type="button" role="tab" aria-selected="true" data-i18n="tab.login">Sign in</button>
+        <button class="nav-link" id="tab-register" data-bs-toggle="pill" data-bs-target="#pane-register" type="button" role="tab" aria-selected="false" data-i18n="tab.register">New patient</button>
+      </div>
+
+      <div id="msg" class="alert alert-danger d-none" role="alert"></div>
+
+      <div class="tab-content">
+        <!-- ===== Sign in ===== -->
+        <div class="tab-pane fade show active" id="pane-login" role="tabpanel" aria-labelledby="tab-login">
+          <form id="login-form" novalidate>
+            <div class="mb-3"><label class="form-label" for="l-email" data-i18n="f.email">E-mail address</label>
+              <input class="form-control form-control-lg" id="l-email" type="email" autocomplete="username" data-i18n-ph="ph.email" required></div>
+            <div class="mb-4"><label class="form-label" for="l-pass" data-i18n="f.password">Password</label>
+              <div class="input-group input-group-lg">
+                <input class="form-control" id="l-pass" type="password" autocomplete="current-password" required>
+                <button class="btn btn-show" type="button" data-action="toggle-pass" data-target="l-pass" data-i18n="f.show">Show</button>
+              </div></div>
+            <button class="btn btn-primary btn-lg w-100" type="submit" data-i18n="btn.signin">Sign in</button>
+          </form>
+          <p class="auth-note" data-i18n="auth.staffnote"></p>
+        </div>
+
+        <!-- ===== New patient: form, then review step ===== -->
+        <div class="tab-pane fade" id="pane-register" role="tabpanel" aria-labelledby="tab-register">
+          <form id="register-form" novalidate>
+            <div class="mb-3"><label class="form-label" for="r-name" data-i18n="f.name">Full name</label>
+              <input class="form-control form-control-lg" id="r-name" autocomplete="name" required></div>
+            <div class="mb-3"><label class="form-label" for="r-email" data-i18n="f.email">E-mail address</label>
+              <input class="form-control form-control-lg" id="r-email" type="email" autocomplete="email" required></div>
+            <div class="row g-3 mb-3">
+              <div class="col-6"><label class="form-label" for="r-dob" data-i18n="f.dob">Date of birth</label>
+                <input class="form-control form-control-lg" id="r-dob" type="date"></div>
+              <div class="col-6"><label class="form-label" for="r-gender" data-i18n="f.gender">Gender</label>
+                <select class="form-select form-select-lg" id="r-gender"><option value="" data-i18n="f.nosay">Prefer not to say</option><option value="Female" data-i18n="f.female">Female</option><option value="Male" data-i18n="f.male">Male</option></select></div>
+            </div>
+            <div class="mb-3"><label class="form-label" for="r-phone" data-i18n="f.phone">Phone</label>
+              <input class="form-control form-control-lg" id="r-phone" type="tel" autocomplete="tel" placeholder="+254 7XX XXX XXX"></div>
+            <div class="mb-4"><label class="form-label" for="r-pass"><span data-i18n="f.password">Password</span> <span class="text-muted fw-normal" data-i18n="f.passhint"></span></label>
+              <div class="input-group input-group-lg">
+                <input class="form-control" id="r-pass" type="password" autocomplete="new-password" required minlength="8">
+                <button class="btn btn-show" type="button" data-action="toggle-pass" data-target="r-pass" data-i18n="f.show">Show</button>
+              </div></div>
+            <button class="btn btn-primary btn-lg w-100" type="submit" data-i18n="btn.review">Review my details</button>
+          </form>
+
+          <div id="review-pane" class="d-none">
+            <dl class="review-list">
+              <div><dt data-i18n="f.name"></dt><dd id="rv-name"></dd></div>
+              <div><dt data-i18n="f.email"></dt><dd id="rv-email"></dd></div>
+              <div><dt data-i18n="f.dob"></dt><dd id="rv-dob"></dd></div>
+              <div><dt data-i18n="f.gender"></dt><dd id="rv-gender"></dd></div>
+              <div><dt data-i18n="f.phone"></dt><dd id="rv-phone"></dd></div>
+              <div><dt data-i18n="f.password"></dt><dd id="rv-pass" data-i18n="f.hidden"></dd></div>
+            </dl>
+            <div class="form-check mb-4">
+              <input class="form-check-input" type="checkbox" id="rv-ok">
+              <label class="form-check-label" for="rv-ok" data-i18n="chk.confirm"></label>
+            </div>
+            <div class="d-grid gap-2">
+              <button class="btn btn-primary btn-lg" id="rv-confirm" type="button" disabled data-i18n="btn.confirm"></button>
+              <button class="btn btn-outline-primary" id="rv-edit" type="button" data-i18n="btn.edit"></button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </main>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+<script src="/assets/js/i18n.js"></script>
+<script src="/assets/js/common.js"></script>
+<script src="/assets/js/bot.js"></script>
+<script src="/assets/js/login.js"></script>
+</body>
+</html>
