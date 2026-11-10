@@ -57,7 +57,7 @@ const DICT = {
     'hero.p.sub': 'What would you like to do today?',
     'hero.d.sub': "Here is your queue and schedule for today.",
     'hero.o.sub': 'Here is how the hospital is doing.',
-    'nav.logout': 'Log out',
+    'nav.logout': 'Log out', 'nav.menu': 'Menu', 'brand.name': 'Hospital Management',
 
     // ---- Login / registration ----
     'auth.tag': 'Private clinic suite',
@@ -166,7 +166,7 @@ const DICT = {
     'hero.p.sub': 'Ungependa kufanya nini leo?',
     'hero.d.sub': 'Hii ni foleni na ratiba yako ya leo.',
     'hero.o.sub': 'Hivi ndivyo hospitali inavyoendelea.',
-    'nav.logout': 'Toka',
+    'nav.logout': 'Toka', 'nav.menu': 'Menyu', 'brand.name': 'Usimamizi wa Hospitali',
 
     'auth.tag': 'Mfumo wa kliniki binafsi',
     'auth.hero': 'Huduma, uratibu na uwazi, vyote mahali pamoja.',

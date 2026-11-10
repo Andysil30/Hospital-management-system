@@ -261,6 +261,10 @@ Receptionist role; SMS/e-mail reminders; printing prescriptions as PDF; lab resu
 
 **Confirm details before registering.** After the form, a patient sees a review screen listing every detail, must tick "I confirm that the details above are correct", and only then is the account created. The server also refuses any registration without that confirmation, so it cannot be skipped.
 
+## Stage 11e: Dashboard layout
+
+All three dashboards now use the same layout: a dark sidebar menu on the left (coloured per role), a top bar with a personal greeting, the date and your name, and the content on the right. The **doctor dashboard** opens on a summary: today's appointments, completed visits, patients this month and rating, a two-line chart (patients seen over the last 14 days and booked for the next 6), a schedule panel with a day selector, a next-patient card, a rating breakdown and recent feedback. The full queue and consultation table is under "Queue and consultations". Colours and layout are in `public/css/style.css` (search for "Dashboard shell"); the data comes from `/api/doctor/overview`.
+
 ## Stage 11d: Departments, staffing and doctor logins
 
 * The hospital now has **34 departments** in five groups: emergency and critical care (ED, ICU, NICU, HDU), specialist clinics (cardiology, oncology, paediatrics, obstetrics and gynaecology, orthopaedics, neurology, dermatology, ENT, eye, dental, psychiatry, urology, gastroenterology, endocrinology, pulmonology and general medicine), surgery (general, plastic, anaesthesiology, operating theatre), diagnostics and support (radiology, laboratory, pharmacy, physiotherapy, nutrition) and administration (reception, medical records, billing, human resources, IT).

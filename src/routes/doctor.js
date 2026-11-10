@@ -12,6 +12,47 @@ router.use(requireRole('doctor'), loadDoctor);
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 const TIME_RE = /^([01]\d|2[0-3]):[0-5]\d$/;
 
+// ---------- Dashboard overview (summary cards, chart, next patient, rating) ----------
+router.get('/overview', async (req, res) => {
+  const id = req.doctorId;
+  const today = (await query(
+    `SELECT COUNT(*) FILTER (WHERE status <> 'cancelled') AS total,
+            COUNT(*) FILTER (WHERE status IN ('booked','checked_in')) AS waiting,
+            COUNT(*) FILTER (WHERE status = 'completed') AS completed
+     FROM appointments WHERE doctor_id = $1 AND appointment_date = CURRENT_DATE`, [id])).rows[0];
+
+  const next = (await query(
+    `SELECT a.id, a.patient_id, a.appointment_date AS date, to_char(a.start_time,'HH24:MI') AS time, a.status, a.reason, u.full_name AS patient
+     FROM appointments a JOIN patients p ON p.id = a.patient_id JOIN users u ON u.id = p.user_id
+     WHERE a.doctor_id = $1 AND a.status IN ('booked','checked_in')
+       AND (a.appointment_date > CURRENT_DATE OR (a.appointment_date = CURRENT_DATE AND a.start_time >= LOCALTIME - interval '30 minutes'))
+     ORDER BY a.appointment_date, a.start_time LIMIT 1`, [id])).rows[0] || null;
+
+  // The last 14 days (patients seen) and the next 6 days (patients booked)
+  const series = (await query(
+    `SELECT to_char(d, 'DD Mon') AS label,
+            COUNT(a.id) FILTER (WHERE a.status = 'completed') AS seen,
+            COUNT(a.id) FILTER (WHERE a.status IN ('booked','checked_in')) AS upcoming
+     FROM generate_series(CURRENT_DATE - 13, CURRENT_DATE + 6, interval '1 day') AS d
+     LEFT JOIN appointments a ON a.doctor_id = $1 AND a.appointment_date = d::date
+     GROUP BY d ORDER BY d`, [id])).rows;
+
+  const month = (await query(
+    `SELECT COUNT(DISTINCT patient_id) AS n FROM appointments
+     WHERE doctor_id = $1 AND status = 'completed' AND date_trunc('month', appointment_date) = date_trunc('month', CURRENT_DATE)`, [id])).rows[0].n;
+
+  const rating = (await query(
+    `SELECT COALESCE(ROUND(AVG(rating)::numeric, 1), 0) AS avg, COUNT(*) AS total,
+            COUNT(*) FILTER (WHERE rating = 5) AS r5, COUNT(*) FILTER (WHERE rating = 4) AS r4, COUNT(*) FILTER (WHERE rating = 3) AS r3,
+            COUNT(*) FILTER (WHERE rating = 2) AS r2, COUNT(*) FILTER (WHERE rating = 1) AS r1
+     FROM feedback WHERE doctor_id = $1`, [id])).rows[0];
+
+  const recent = (await query(
+    `SELECT rating, comment, created_at::date AS date FROM feedback WHERE doctor_id = $1 ORDER BY created_at DESC LIMIT 3`, [id])).rows;
+
+  res.json({ today, next, series, month, rating, recent });
+});
+
 // ---------- Daily schedule & queue -----------------------------------
 router.get('/schedule', async (req, res) => {
   const date = DATE_RE.test(req.query.date || '') ? req.query.date : null;

@@ -8,29 +8,70 @@
   <link href="/assets/css/style.css" rel="stylesheet">
 </head>
 <body class="role-doctor" data-page-i18n="off">
-<header class="topbar">
-  <div class="container-xl d-flex align-items-center justify-content-between py-2">
-    <a class="brand" href="/doctor"><svg class="logo-mark" width="34" height="34" viewBox="0 0 32 32" aria-hidden="true"><rect width="32" height="32" rx="9" fill="#fff"/><path d="M13 7h6v6h6v6h-6v6h-6v-6H7v-6h6z" fill="#c65a3a"/></svg><span>Hospital Management · Clinic</span></a>
-    <div class="d-flex align-items-center gap-3">
-      <span class="who" id="who"></span>
-      <button class="btn btn-sm btn-light" data-action="logout">Log out</button>
+<div class="app-shell">
+  <aside class="sidebar">
+    <a class="brand" href="/doctor"><svg class="logo-mark" width="34" height="34" viewBox="0 0 32 32" aria-hidden="true"><rect width="32" height="32" rx="9" fill="#fff"/><path d="M13 7h6v6h6v6h-6v6h-6v-6H7v-6h6z" fill="#c65a3a"/></svg><span><span>Hospital Management</span><small class="d-block" style="font-family:var(--bs-body-font-family);font-size:.72rem;letter-spacing:.08em;text-transform:uppercase;opacity:.7">Doctor portal</small></span></a>
+    <div class="side-label">Menu</div>
+    <ul class="nav flex-column sidebar-nav" role="tablist">
+      <li class="nav-item"><button class="nav-link active" id="t-dash" data-bs-toggle="tab" data-bs-target="#p-dash" type="button" role="tab"><svg class="nav-ico" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/></svg><span>Dashboard</span></button></li>
+      <li class="nav-item"><button class="nav-link" id="t-schedule" data-bs-toggle="tab" data-bs-target="#p-schedule" type="button" role="tab"><svg class="nav-ico" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg><span>Queue and consultations</span></button></li>
+      <li class="nav-item"><button class="nav-link" id="t-avail" data-bs-toggle="tab" data-bs-target="#p-avail" type="button" role="tab"><svg class="nav-ico" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg><span>Availability</span></button></li>
+      <li class="nav-item"><button class="nav-link" id="t-feedback" data-bs-toggle="tab" data-bs-target="#p-feedback" type="button" role="tab"><svg class="nav-ico" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 2l3.1 6.3 6.9 1-5 4.9 1.2 6.8L12 17.8 5.8 21l1.2-6.8-5-4.9 6.9-1z"/></svg><span>Feedback</span></button></li>
+    </ul>
+    <div class="sidebar-foot">
+      <button class="nav-link" data-action="logout"><svg class="nav-ico" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4M16 17l5-5-5-5M21 12H9"/></svg><span>Log out</span></button>
     </div>
-  </div>
-</header>
+  </aside>
 
-<section class="hero-band"><div class="container-xl">
-  <div class="hero-eyebrow" id="today"></div><h1 id="greeting"></h1><p class="hero-sub">Here is your queue and schedule for today.</p></div></section>
+  <div class="app-main">
+    <header class="app-top">
+      <div><h1 id="greeting"></h1><p class="app-sub">Here is your queue and schedule for today.</p></div>
+      <div class="app-top-tools">
+        
+        <span class="date-chip"><svg class="" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg><span id="today"></span></span>
+        
+        <span class="user-chip"><span class="avatar-sm" id="avatar" aria-hidden="true"></span><span id="who"></span></span>
+      </div>
+    </header>
 
-<main class="container-xl py-4 lift">
-  <ul class="nav app-tabs mb-4" role="tablist">
-    <li class="nav-item"><button class="nav-link active" id="t-schedule" data-bs-toggle="tab" data-bs-target="#p-schedule" type="button" role="tab">Today's queue</button></li>
-    <li class="nav-item"><button class="nav-link" id="t-avail" data-bs-toggle="tab" data-bs-target="#p-avail" type="button" role="tab">Availability</button></li>
-    <li class="nav-item"><button class="nav-link" id="t-feedback" data-bs-toggle="tab" data-bs-target="#p-feedback" type="button" role="tab">Patient feedback</button></li>
-  </ul>
-
+    <main class="app-content">
   <div class="tab-content">
+    <!-- ============ DASHBOARD ============ -->
+    <div class="tab-pane fade show active" id="p-dash" role="tabpanel">
+      <div class="kpis mb-4" id="dash-kpis"></div>
+
+      <div class="dash-grid mb-4">
+        <div class="panel">
+          <h2>Patient statistics</h2>
+          <div class="panel-sub">Patients seen over the last 14 days and patients booked for the next 6 days</div>
+          <div class="chart-box"><canvas id="doctorChart" role="img" aria-label="Patients seen and booked"></canvas></div>
+        </div>
+        <div class="panel">
+          <div class="d-flex justify-content-between align-items-center">
+            <h2 class="mb-0">Schedule</h2><span class="small text-muted" id="dash-date-label"></span>
+          </div>
+          <div class="day-strip" id="day-strip"></div>
+          <div class="timeline" id="dash-timeline"></div>
+        </div>
+      </div>
+
+      <div class="dash-bottom">
+        <div id="next-card"></div>
+        <div class="panel">
+          <h2>My rating</h2>
+          <div class="panel-sub" id="rating-sub"></div>
+          <div class="chart-box short" id="rating-box"><canvas id="ratingChart" role="img" aria-label="Ratings from patients"></canvas></div>
+        </div>
+        <div class="panel">
+          <h2>Recent feedback</h2>
+          <div class="panel-sub">What patients said about you</div>
+          <div id="dash-feedback"></div>
+        </div>
+      </div>
+    </div>
+
     <!-- ============ SCHEDULE ============ -->
-    <div class="tab-pane fade show active" id="p-schedule" role="tabpanel">
+    <div class="tab-pane fade" id="p-schedule" role="tabpanel">
       <div class="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-3">
         <div class="d-flex align-items-center gap-2">
           <button class="btn btn-outline-primary btn-sm" data-action="day-prev" aria-label="Previous day">&lt;</button>
@@ -86,7 +127,11 @@
       </div>
     </div>
   </div>
-</main>
+
+    </main>
+  </div>
+</div>
+
 
 <!-- Consultation modal -->
 <div class="modal fade" id="consultModal" tabindex="-1" aria-labelledby="consultTitle" aria-hidden="true">
@@ -118,6 +163,7 @@
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
 <script src="/assets/js/i18n.js"></script>
 <script src="/assets/js/common.js"></script>
 <script src="/assets/js/bot.js"></script>
