@@ -33,14 +33,29 @@ function renderDepts() {
 }
 
 function renderTeam() {
-  const best = [...docs].sort((a, b) => (b.avg_rating - a.avg_rating) || (b.review_count - a.review_count)).slice(0, 3);
+  const ranked = [...docs].sort((a, b) => (b.avg_rating - a.avg_rating) || (b.review_count - a.review_count));
+  // Show up to three doctors, each from a different department
+  const seen = new Set();
+  const best = [];
+  for (const d of ranked) {
+    if (seen.has(d.department_id)) continue;
+    seen.add(d.department_id);
+    best.push(d);
+    if (best.length === 3) break;
+  }
+  // "Top-rated" is only honest once patients have left reviews
+  const anyReviews = ranked.some((d) => d.review_count > 0);
+  $('#docs-title').dataset.i18n = anyReviews ? 'docs.title' : 'docs.title.alt';
+  $('#docs-sub').dataset.i18n = anyReviews ? 'docs.sub' : 'docs.sub.alt';
+  applyI18n();
+
   $('#team-grid').innerHTML = best.map((d) => `
     <div class="col-md-4"><article class="team-card">
       <div class="avatar" aria-hidden="true">${esc(initials(d.full_name))}</div>
       <h3>${esc(d.full_name)}</h3>
       <div class="spec">${esc(d.specialty)}</div>
-      <div class="my-2">${d.review_count ? `${stars(d.avg_rating)} <span class="small text-muted">${d.avg_rating} (${esc(reviewsText(d.review_count))})</span>` : `<span class="small text-muted">${esc(t('no.reviews'))}</span>`}</div>
-      <div class="small text-muted mb-3">${esc(d.department)}</div>
+      ${d.review_count ? `<div class="my-2">${stars(d.avg_rating)} <span class="small text-muted">${d.avg_rating} (${esc(reviewsText(d.review_count))})</span></div>` : ''}
+      ${d.department !== d.specialty ? `<div class="small text-muted mb-3">${esc(d.department)}</div>` : '<div class="mb-3"></div>'}
       <a class="btn btn-outline-primary btn-sm" href="/login/patient">${esc(t('docs.book'))}</a>
     </article></div>`).join('') || `<div class="col-12">${empty(t('docs.empty'))}</div>`;
 }
