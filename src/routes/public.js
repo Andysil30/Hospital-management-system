@@ -1,19 +1,26 @@
-// Doctor directory: public hospital information (no private data).
+// Public hospital information (no private data).
 const express = require('express');
 const { query } = require('../db');
 
 const router = express.Router();
 
+// Groups appear in this order. Administrative departments (HR, billing...) are never public.
+const CAT_ORDER = `CASE d.category WHEN 'emergency' THEN 1 WHEN 'specialist' THEN 2 WHEN 'surgical' THEN 3 WHEN 'diagnostic' THEN 4 ELSE 5 END`;
+
+// ?bookable=1 -> only departments where patients can book online
 router.get('/departments', async (req, res) => {
+  const onlyBookable = req.query.bookable === '1';
   const { rows } = await query(
-    `SELECT d.id, d.name, d.description, COUNT(doc.id) AS doctor_count
-     FROM departments d LEFT JOIN doctors doc ON doc.department_id = d.id
-     LEFT JOIN users u ON u.id = doc.user_id AND u.is_active
-     GROUP BY d.id ORDER BY d.name`
-  );
+    `SELECT d.id, d.name, d.description, d.category, d.bookable,
+            (SELECT COUNT(*) FROM doctors doc JOIN users u ON u.id = doc.user_id AND u.is_active
+             WHERE doc.department_id = d.id) AS doctor_count
+     FROM departments d
+     WHERE d.category <> 'admin' AND (NOT $1::boolean OR d.bookable)
+     ORDER BY ${CAT_ORDER}, d.name`, [onlyBookable]);
   res.json(rows);
 });
 
+// The doctor directory only lists doctors in departments that take online bookings.
 router.get('/doctors', async (req, res) => {
   const deptId = parseInt(req.query.department_id, 10) || null;
   const { rows } = await query(
@@ -28,7 +35,7 @@ router.get('/doctors', async (req, res) => {
              FROM doctor_availability a WHERE a.doctor_id = doc.id) AS hours
      FROM doctors doc
      JOIN users u ON u.id = doc.user_id AND u.is_active
-     JOIN departments dep ON dep.id = doc.department_id
+     JOIN departments dep ON dep.id = doc.department_id AND dep.bookable
      LEFT JOIN feedback f ON f.doctor_id = doc.id
      WHERE ($1::int IS NULL OR dep.id = $1)
      GROUP BY doc.id, u.full_name, dep.id

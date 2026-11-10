@@ -26,7 +26,7 @@ function hoursText(hours) {
 
 async function loadDepartments() {
   const keep = $('#dept-filter').value;
-  const deps = await api('/public/departments');
+  const deps = await api('/public/departments?bookable=1');
   $('#dept-filter').innerHTML = `<option value="">${esc(t('dept.all'))}</option>` +
     deps.map((d) => `<option value="${d.id}">${esc(d.name)} (${d.doctor_count})</option>`).join('');
   $('#dept-filter').value = keep;

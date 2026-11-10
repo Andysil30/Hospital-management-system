@@ -72,6 +72,8 @@ html { scroll-padding-top: 5rem; scroll-behavior: smooth; }
 .dept-card p { color: var(--muted); font-size: .9rem; margin-bottom: .6rem; }
 .dept-card .count { display: inline-block; font-size: .8rem; font-weight: 700; color: var(--primary); background: var(--primary-soft); padding: .15rem .6rem; border-radius: 999px; }
 
+.cat-title { font-size: 1.15rem; margin: 1.4rem 0 .1rem; color: var(--primary-dark); padding-bottom: .35rem; border-bottom: 2px solid var(--primary-soft); }
+.dept-card .count.alt { background: var(--accent-soft); color: #8f3a22; }
 .team-card { background: var(--surface); border: 1px solid var(--line); border-radius: 16px; padding: 1.4rem; height: 100%; text-align: center; transition: box-shadow .15s, transform .15s; }
 .team-card:hover { box-shadow: 0 14px 30px rgba(23,38,31,.12); transform: translateY(-3px); }
 .team-card .avatar { width: 76px; height: 76px; font-size: 1.6rem; margin: 0 auto .8rem; }

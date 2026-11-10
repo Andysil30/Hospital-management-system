@@ -175,14 +175,44 @@ $('#med-form').addEventListener('submit', (e) => {
 });
 
 // ===================== STAFF =====================
+const GROUPS = { emergency: 'Emergency and critical care', specialist: 'Specialist clinics', surgical: 'Surgery', diagnostic: 'Diagnostics and support', admin: 'Administrative' };
+
+function deptOptions(depts) {
+  return Object.keys(GROUPS).map((cat) => {
+    const list = depts.filter((d) => d.category === cat);
+    return list.length ? `<optgroup label="${esc(GROUPS[cat])}">${list.map((d) => `<option value="${d.id}">${esc(d.name)}</option>`).join('')}</optgroup>` : '';
+  }).join('');
+}
+
 async function loadStaff() {
-  const [docs, depts] = await Promise.all([api('/admin/doctors'), api('/admin/departments')]);
-  $('#d-dept').innerHTML = depts.map((d) => `<option value="${d.id}">${esc(d.name)}</option>`).join('');
+  const [docs, depts, cover, people, patterns] = await Promise.all([
+    api('/admin/doctors'), api('/admin/departments'), api('/admin/coverage'), api('/admin/personnel'), api('/admin/schedule-patterns'),
+  ]);
+  const keepD = $('#d-dept').value, keepP = $('#p-dept').value;
+  $('#d-dept').innerHTML = deptOptions(depts);
+  $('#p-dept').innerHTML = deptOptions(depts);
+  if (keepD) $('#d-dept').value = keepD;
+  if (keepP) $('#p-dept').value = keepP;
+  const patOpts = patterns.map((p) => `<option value="${p.key}">${esc(p.label)}</option>`).join('');
+  if (!$('#d-pattern').options.length) { $('#d-pattern').innerHTML = patOpts; $('#p-pattern').innerHTML = patOpts; }
+
+  const badge = { ok: '<span class="chip ok">OK</span>', short: '<span class="chip bad">Needs more staff</span>', over: '<span class="chip bad">Over the limit</span>' };
+  $('#coverage-table').innerHTML = cover.map((c) => `
+    <tr><td>${esc(c.name)}${c.max_staff ? ` <span class="text-muted small">(limit ${c.max_staff})</span>` : ''}</td><td>${esc(GROUPS[c.category])}</td>
+    <td class="text-end">${c.clinicians}</td><td class="text-end">${c.personnel}</td><td>${badge[c.status]}</td></tr>`).join('');
+
   $('#doctor-table').innerHTML = docs.map((d) => `
     <tr><td>${esc(d.full_name)}<div class="text-muted small">${esc(d.email)}</div></td><td>${esc(d.department)}</td>
-    <td class="text-end">${money(d.consultation_fee)}</td>
+    <td class="small">${esc(d.schedule_label)}</td><td class="text-end">${money(d.consultation_fee)}</td>
     <td>${d.is_active ? '<span class="chip ok">Active</span>' : '<span class="chip bad">Disabled</span>'}</td>
-    <td class="text-end"><button class="btn btn-sm btn-outline-primary" data-action="doc-toggle" data-id="${d.id}" data-active="${d.is_active}">${d.is_active ? 'Disable' : 'Enable'}</button></td></tr>`).join('');
+    <td class="text-end"><button class="btn btn-sm btn-outline-primary" data-action="doc-toggle" data-id="${d.id}" data-active="${d.is_active}">${d.is_active ? 'Disable' : 'Enable'}</button></td></tr>`).join('')
+    || `<tr><td colspan="6">${empty('No doctors yet.')}</td></tr>`;
+
+  $('#personnel-table').innerHTML = people.map((m) => `
+    <tr><td>${esc(m.full_name)}</td><td>${esc(m.department)}</td><td>${esc(m.job_title)}</td><td class="small">${esc(m.schedule_label)}</td>
+    <td>${m.is_active ? '<span class="chip ok">Active</span>' : '<span class="chip bad">Inactive</span>'}</td>
+    <td class="text-end"><button class="btn btn-sm btn-outline-primary" data-action="staff-toggle" data-id="${m.id}" data-active="${m.is_active}">${m.is_active ? 'Disable' : 'Enable'}</button></td></tr>`).join('')
+    || `<tr><td colspan="6">${empty('No personnel yet.')}</td></tr>`;
 }
 
 actions['doc-toggle'] = (btn) => run(btn, async () => {
@@ -190,20 +220,41 @@ actions['doc-toggle'] = (btn) => run(btn, async () => {
   toast('Doctor updated.');
   await loadStaff();
 });
+actions['staff-toggle'] = (btn) => run(btn, async () => {
+  await api(`/admin/personnel/${btn.dataset.id}/active`, { method: 'POST', body: { is_active: btn.dataset.active !== 'true' } });
+  toast('Staff member updated.');
+  await loadStaff();
+});
 
 $('#doctor-form').addEventListener('submit', (e) => {
   e.preventDefault();
+  const email = $('#d-email').value.trim();
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(email)) return toast('Enter a valid e-mail address, for example example@gmail.com.', 'error');
+  if ($('#d-pass').value.length < 8) return toast('The password must be at least 8 characters.', 'error');
   run($('button[type=submit]', e.target), async () => {
     await api('/admin/doctors', {
       method: 'POST',
       body: {
-        full_name: $('#d-name').value, email: $('#d-email').value, password: $('#d-pass').value,
-        department_id: $('#d-dept').value, consultation_fee: $('#d-fee').value,
+        full_name: $('#d-name').value, email, password: $('#d-pass').value,
+        department_id: $('#d-dept').value, schedule: $('#d-pattern').value, consultation_fee: $('#d-fee').value,
         specialty: $('#d-spec').value, qualifications: $('#d-qual').value,
       },
     });
     e.target.reset();
-    toast('Doctor account created. Share the temporary password privately.');
+    toast('Doctor account created. Share the e-mail and password privately.');
+    await loadStaff();
+  });
+});
+
+$('#personnel-form').addEventListener('submit', (e) => {
+  e.preventDefault();
+  run($('button[type=submit]', e.target), async () => {
+    await api('/admin/personnel', {
+      method: 'POST',
+      body: { full_name: $('#p-name').value, job_title: $('#p-title').value, department_id: $('#p-dept').value, schedule: $('#p-pattern').value, phone: $('#p-phone').value },
+    });
+    e.target.reset();
+    toast('Personnel added.');
     await loadStaff();
   });
 });
@@ -211,7 +262,7 @@ $('#doctor-form').addEventListener('submit', (e) => {
 $('#dept-form').addEventListener('submit', (e) => {
   e.preventDefault();
   run($('button[type=submit]', e.target), async () => {
-    await api('/admin/departments', { method: 'POST', body: { name: $('#dep-name').value } });
+    await api('/admin/departments', { method: 'POST', body: { name: $('#dep-name').value, category: $('#dep-cat').value } });
     e.target.reset();
     toast('Department added.');
     await loadStaff();

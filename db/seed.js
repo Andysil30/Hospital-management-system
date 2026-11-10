@@ -1,32 +1,21 @@
-// Fills the database with realistic DEMO data so the dashboards have
-// something to show.  Run once after db:init:   npm run db:seed
-// (To start over:  npm run db:reset && npm run db:seed)
+// Fills the database with realistic DEMO data so the dashboards have something to show.
+//   npm run db:seed        (run once after db:init)
+//   npm run db:reset && npm run db:seed     (to start over)
+//
+// It creates the full hospital structure (all departments, two doctors or staff each),
+// 30 demo patients, a pharmacy stock list, 30 days of visits with payments and
+// feedback that follow each doctor's real working days, and upcoming bookings.
+// DEMO ONLY: all demo doctors share one known password. Do not use this on a public site.
 require('dotenv').config();
 const bcrypt = require('bcryptjs');
 const { pool } = require('../src/db');
+const { applyOrganisation } = require('./org');
 
+const DEMO_DOCTOR_PASSWORD = 'Doctor@123';
 const rnd = (n) => Math.floor(Math.random() * n);
 const pick = (arr) => arr[rnd(arr.length)];
+const shuffle = (arr) => [...arr].sort(() => Math.random() - 0.5);
 const fmt = (d) => d.toISOString().slice(0, 10);
-
-const DEPARTMENTS = [
-  ['General Medicine', 'Primary care and everyday illnesses'],
-  ['Paediatrics', 'Care for infants, children and teenagers'],
-  ['Cardiology', 'Heart and blood-pressure care'],
-  ['Dermatology', 'Skin, hair and nail conditions'],
-  ['Orthopaedics', 'Bones, joints and sports injuries'],
-  ['Gynaecology', "Women's health and maternity"],
-];
-
-// name, dept index, specialty, qualifications, fee (KES), typical rating
-const DOCTORS = [
-  ['Dr. Amina Wanjiru', 0, 'Family Medicine', 'MBChB (Nairobi), MMed Family Medicine', 2000, 4.7],
-  ['Dr. Peter Otieno', 1, 'Paediatrics', 'MBChB (Moi), MMed Paediatrics', 2500, 4.5],
-  ['Dr. Grace Mwangi', 2, 'Interventional Cardiology', 'MBChB, MMed Internal Medicine, Fellowship Cardiology', 4500, 4.8],
-  ['Dr. Hassan Abdi', 3, 'Clinical Dermatology', 'MBChB (Nairobi), MMed Dermatology', 3000, 4.1],
-  ['Dr. Lucy Kamau', 4, 'Orthopaedic Surgery', 'MBChB, MMed Orthopaedic Surgery', 4000, 4.3],
-  ['Dr. Brian Njoroge', 5, 'Obstetrics & Gynaecology', 'MBChB (Nairobi), MMed Obs & Gynae', 3500, 3.9],
-];
 
 const FIRST = ['Mary', 'John', 'Faith', 'James', 'Esther', 'Daniel', 'Joyce', 'Samuel', 'Naomi', 'Kevin', 'Ann', 'Victor', 'Lilian', 'Collins', 'Mercy'];
 const LAST = ['Odhiambo', 'Kiprop', 'Achieng', 'Mutua', 'Wafula', 'Chebet', 'Omondi', 'Njeri', 'Karanja', 'Barasa', 'Mwende', 'Kimani'];
@@ -46,7 +35,7 @@ const MEDICINES = [
   ['Loratadine 10mg', 'Antihistamine', 6, 240, 60, 600], ['Expired Test Syrup', 'Cough & Cold', 90, 25, 20, -15],
 ];
 
-const REASONS = ['Fever and headache', 'Routine check-up', 'Follow-up visit', 'Skin rash', 'Chest discomfort', 'Back pain', 'Cough for two weeks', 'Child vaccination review'];
+const REASONS = ['Fever and headache', 'Routine check-up', 'Follow-up visit', 'Skin rash', 'Chest discomfort', 'Back pain', 'Cough for two weeks', 'Review of test results'];
 const DIAGNOSES = ['Viral infection', 'Hypertension - controlled', 'Allergic dermatitis', 'Lower back strain', 'Upper respiratory infection', 'Malaria (uncomplicated)', 'Gastritis', 'Healthy - routine review'];
 const COMMENTS = {
   5: ['Very caring and thorough.', 'Explained everything clearly.', 'Best consultation I have had.', 'Short wait and great care.'],
@@ -56,7 +45,14 @@ const COMMENTS = {
   1: ['Not satisfied with the visit.'],
 };
 
-const SLOTS = ['09:00', '09:30', '10:00', '10:30', '11:00', '11:30', '12:00', '14:00', '14:30', '15:00', '15:30', '16:00', '16:30'];
+// 30-minute start times that fit inside a doctor's working ranges on one weekday
+const toMin = (t) => parseInt(t.slice(0, 2), 10) * 60 + parseInt(t.slice(3, 5), 10);
+const hhmm = (m) => String(Math.floor(m / 60)).padStart(2, '0') + ':' + String(m % 60).padStart(2, '0');
+function slotsFor(ranges) {
+  const out = new Set();
+  for (const r of ranges) for (let m = toMin(r.s); m + 30 <= toMin(r.e); m += 30) out.add(hhmm(m));
+  return [...out].sort();
+}
 
 async function main() {
   const exists = await pool.query(`SELECT 1 FROM users WHERE email = 'admin@hospital.test'`);
@@ -69,30 +65,27 @@ async function main() {
   const todayDate = new Date(today + 'T00:00:00Z');
   const addDays = (n) => fmt(new Date(todayDate.getTime() + n * 86400000));
 
-  console.log('Creating admin, departments, doctors, patients...');
+  console.log('Creating the owner account...');
   await pool.query(`INSERT INTO users (full_name,email,password_hash,role) VALUES ('Hospital Owner','admin@hospital.test',$1,'admin')`, [hash('Admin@123')]);
 
-  const deptIds = [];
-  for (const [name, desc] of DEPARTMENTS) {
-    deptIds.push((await pool.query('INSERT INTO departments (name,description) VALUES ($1,$2) RETURNING id', [name, desc])).rows[0].id);
+  console.log('Creating departments, doctors and support staff...');
+  const { summary } = await applyOrganisation(pool, { password: DEMO_DOCTOR_PASSWORD });
+  console.log(`  ${summary.departments} departments, ${summary.doctors} doctors/clinicians, ${summary.personnel} support staff`);
+
+  // Only doctors in departments patients can book get visit history
+  const docs = (await pool.query(
+    `SELECT d.id, d.consultation_fee AS fee, u.email FROM doctors d
+     JOIN users u ON u.id = d.user_id JOIN departments dep ON dep.id = d.department_id
+     WHERE dep.bookable ORDER BY d.id`)).rows;
+  const avail = (await pool.query(
+    `SELECT doctor_id, weekday, to_char(start_time,'HH24:MI') AS s, to_char(end_time,'HH24:MI') AS e FROM doctor_availability`)).rows;
+  for (const d of docs) {
+    d.rating = 3.7 + rnd(13) / 10; // each doctor has a typical rating between 3.7 and 4.9
+    d.week = {};
+    for (const a of avail.filter((x) => x.doctor_id === d.id)) (d.week[a.weekday] = d.week[a.weekday] || []).push(a);
   }
 
-  const doctors = [];
-  const docHash = hash('Doctor@123');
-  for (let i = 0; i < DOCTORS.length; i++) {
-    const [name, dep, spec, qual, fee, rating] = DOCTORS[i];
-    const u = await pool.query(`INSERT INTO users (full_name,email,password_hash,role,phone) VALUES ($1,$2,$3,'doctor',$4) RETURNING id`,
-      [name, `doctor${i + 1}@hospital.test`, docHash, '+2547000000' + (10 + i)]);
-    const d = await pool.query(
-      `INSERT INTO doctors (user_id,department_id,specialty,qualifications,bio,consultation_fee) VALUES ($1,$2,$3,$4,$5,$6) RETURNING id`,
-      [u.rows[0].id, deptIds[dep], spec, qual, `${name} has several years of experience in ${spec.toLowerCase()}.`, fee]);
-    doctors.push({ id: d.rows[0].id, fee, rating });
-    for (let day = 1; day <= 5; day++) {
-      await pool.query(`INSERT INTO doctor_availability (doctor_id,weekday,start_time,end_time) VALUES ($1,$2,'09:00','13:00'),($1,$2,'14:00','17:00')`, [d.rows[0].id, day]);
-    }
-    if (i % 2 === 0) await pool.query(`INSERT INTO doctor_availability (doctor_id,weekday,start_time,end_time) VALUES ($1,6,'09:00','12:00')`, [d.rows[0].id]);
-  }
-
+  console.log('Creating patients...');
   const patientIds = [];
   const patHash = hash('Patient@123');
   for (let i = 0; i < 30; i++) {
@@ -114,15 +107,14 @@ async function main() {
   }
   const usableMeds = medIds.slice(0, 21); // everything except the expired one
 
-  console.log('Generating 60 days of visit history, payments and feedback...');
-  for (let back = 60; back >= 1; back--) {
+  console.log("Generating 30 days of visits, payments and feedback (on each doctor's working days)...");
+  for (let back = 30; back >= 1; back--) {
     const date = addDays(-back);
     const dow = new Date(date + 'T00:00:00Z').getUTCDay();
-    if (dow === 0) continue; // closed Sundays
-    for (const doc of doctors) {
-      const count = 2 + rnd(5);
-      const times = [...SLOTS].sort(() => Math.random() - 0.5).slice(0, count);
-      for (const time of times) {
+    for (const doc of docs) {
+      const times = slotsFor(doc.week[dow] || []);
+      if (!times.length) continue; // this doctor does not work today
+      for (const time of shuffle(times).slice(0, 1 + rnd(3))) {
         const patientId = pick(patientIds);
         const roll = Math.random();
         const status = roll < 0.88 ? 'completed' : roll < 0.96 ? 'cancelled' : 'no_show';
@@ -158,14 +150,13 @@ async function main() {
     }
   }
 
-  console.log('Creating today\'s queue and upcoming bookings...');
+  console.log("Creating today's queue and upcoming bookings...");
   for (let ahead = 0; ahead <= 5; ahead++) {
     const date = addDays(ahead);
     const dow = new Date(date + 'T00:00:00Z').getUTCDay();
-    if (dow === 0 || dow === 6) continue;
-    for (const doc of doctors) {
-      const times = [...SLOTS].sort(() => Math.random() - 0.5).slice(0, 3 + rnd(3));
-      for (const time of times) {
+    for (const doc of docs) {
+      const times = slotsFor(doc.week[dow] || []);
+      for (const time of shuffle(times).slice(0, 1 + rnd(3))) {
         await pool.query(`INSERT INTO appointments (patient_id,doctor_id,appointment_date,start_time,status,reason) VALUES ($1,$2,$3,$4,'booked',$5)`,
           [pick(patientIds), doc.id, date, time, pick(REASONS)]);
       }
@@ -173,9 +164,9 @@ async function main() {
   }
 
   console.log('\nDemo data created. Log in with:');
-  console.log('  Admin   : admin@hospital.test    / Admin@123');
-  console.log('  Doctor  : doctor1@hospital.test  / Doctor@123   (doctor1 ... doctor6)');
-  console.log('  Patient : patient@hospital.test  / Patient@123');
+  console.log('  Owner   : admin@hospital.test / Admin@123');
+  console.log(`  Doctor  : ${docs[0].email} / ${DEMO_DOCTOR_PASSWORD}   (every demo doctor uses this password)`);
+  console.log('  Patient : patient@hospital.test / Patient@123');
 }
 
 main()

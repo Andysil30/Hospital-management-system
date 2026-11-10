@@ -150,16 +150,27 @@ router.put('/medicines/:id', async (req, res) => {
   res.json({ ok: true });
 });
 
-// ---------- Staff & departments --------------------------------------
+// ---------- Departments, doctors and personnel ------------------------
+const { PATTERNS, applyPattern, patternLabel } = require('../schedules');
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;           // e.g. example@gmail.com
+const CATEGORIES = ['emergency', 'specialist', 'surgical', 'diagnostic', 'admin'];
+const CAT_ORDER = `CASE d.category WHEN 'emergency' THEN 1 WHEN 'specialist' THEN 2 WHEN 'surgical' THEN 3 WHEN 'diagnostic' THEN 4 ELSE 5 END`;
+
+router.get('/schedule-patterns', (req, res) => {
+  res.json(Object.entries(PATTERNS).map(([key, p]) => ({ key, label: p.label })));
+});
+
 router.get('/departments', async (req, res) => {
-  res.json((await query('SELECT id, name FROM departments ORDER BY name')).rows);
+  res.json((await query(`SELECT d.id, d.name, d.category, d.bookable, d.max_staff FROM departments d ORDER BY ${CAT_ORDER}, d.name`)).rows);
 });
 
 router.post('/departments', async (req, res) => {
   const name = String(req.body.name || '').trim();
+  const category = CATEGORIES.includes(req.body.category) ? req.body.category : 'specialist';
   if (!name) return res.status(400).json({ error: 'Department name is required.' });
   try {
-    await query('INSERT INTO departments (name, description) VALUES ($1,$2)', [name, String(req.body.description || '').trim() || null]);
+    await query('INSERT INTO departments (name, description, category, bookable) VALUES ($1,$2,$3,$4)',
+      [name, String(req.body.description || '').trim() || null, category, category === 'specialist']);
   } catch (err) {
     if (err.code === '23505') return res.status(409).json({ error: 'That department already exists.' });
     throw err;
@@ -167,14 +178,46 @@ router.post('/departments', async (req, res) => {
   res.status(201).json({ ok: true });
 });
 
+// Who is working in each department? Every department should have at least two people
+// (different days or shifts); Human Resources must have exactly one.
+router.get('/coverage', async (req, res) => {
+  const { rows } = await query(
+    `SELECT d.id, d.name, d.category, d.max_staff,
+            (SELECT COUNT(*) FROM doctors x JOIN users u ON u.id = x.user_id AND u.is_active WHERE x.department_id = d.id) AS clinicians,
+            (SELECT COUNT(*) FROM staff_members s WHERE s.department_id = d.id AND s.is_active) AS personnel
+     FROM departments d ORDER BY ${CAT_ORDER}, d.name`);
+  res.json(rows.map((r) => {
+    const total = r.clinicians + r.personnel;
+    const required = r.max_staff ? Math.min(r.max_staff, 2) : 2;
+    let status = 'ok';
+    if (r.max_staff && total > r.max_staff) status = 'over';
+    else if (total < required) status = 'short';
+    return { ...r, total, required, status };
+  }));
+});
+
 router.get('/doctors', async (req, res) => {
   const { rows } = await query(
     `SELECT d.id, u.id AS user_id, u.full_name, u.email, u.is_active, dep.name AS department,
-            d.specialty, d.consultation_fee
+            d.specialty, d.consultation_fee, d.schedule
      FROM doctors d JOIN users u ON u.id = d.user_id JOIN departments dep ON dep.id = d.department_id
-     ORDER BY u.full_name`);
-  res.json(rows);
+     ORDER BY dep.name, u.full_name`);
+  res.json(rows.map((r) => ({ ...r, schedule_label: patternLabel(r.schedule) })));
 });
+
+// Is there room in this department? (Human Resources allows only one person.)
+async function checkCapacity(db, departmentId) {
+  const dep = (await db.query('SELECT name, max_staff FROM departments WHERE id = $1 FOR UPDATE', [departmentId])).rows[0];
+  if (!dep) throw Object.assign(new Error('Department not found.'), { http: 400 });
+  if (dep.max_staff) {
+    const n = (await db.query(
+      `SELECT (SELECT COUNT(*) FROM doctors x JOIN users u ON u.id = x.user_id AND u.is_active WHERE x.department_id = $1)
+            + (SELECT COUNT(*) FROM staff_members s WHERE s.department_id = $1 AND s.is_active) AS n`, [departmentId])).rows[0].n;
+    if (n >= dep.max_staff) {
+      throw Object.assign(new Error(`${dep.name} allows only ${dep.max_staff} person${dep.max_staff > 1 ? 's' : ''}.`), { http: 409 });
+    }
+  }
+}
 
 router.post('/doctors', async (req, res) => {
   const b = req.body;
@@ -182,9 +225,11 @@ router.post('/doctors', async (req, res) => {
   const name = String(b.full_name || '').trim();
   const deptId = parseInt(b.department_id, 10);
   const fee = Number(b.consultation_fee);
-  if (name.length < 2) return res.status(400).json({ error: 'Enter the doctor\'s full name.' });
-  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return res.status(400).json({ error: 'Enter a valid e-mail address.' });
-  if (!b.password || String(b.password).length < 8) return res.status(400).json({ error: 'Temporary password must be at least 8 characters.' });
+  const pattern = PATTERNS[b.schedule] ? b.schedule : 'office_5';
+  if (name.length < 2) return res.status(400).json({ error: "Enter the doctor's full name." });
+  if (!EMAIL_RE.test(email)) return res.status(400).json({ error: 'Enter a valid e-mail address, for example example@gmail.com.' });
+  if (!b.password || String(b.password).length < 8) return res.status(400).json({ error: 'The password must be at least 8 characters.' });
+  if (String(b.password).length > 72) return res.status(400).json({ error: 'The password must be at most 72 characters.' });
   if (!deptId) return res.status(400).json({ error: 'Choose a department.' });
   if (!String(b.specialty || '').trim() || !String(b.qualifications || '').trim()) return res.status(400).json({ error: 'Specialty and qualifications are required.' });
   if (!(fee >= 0)) return res.status(400).json({ error: 'Enter a valid consultation fee.' });
@@ -192,6 +237,7 @@ router.post('/doctors', async (req, res) => {
   const hash = await bcrypt.hash(String(b.password), 10);
   try {
     await withTransaction(async (db) => {
+      await checkCapacity(db, deptId);
       const u = await db.query(
         `INSERT INTO users (full_name, email, password_hash, role, phone) VALUES ($1,$2,$3,'doctor',$4) RETURNING id`,
         [name, email, hash, b.phone || null]);
@@ -199,14 +245,11 @@ router.post('/doctors', async (req, res) => {
         `INSERT INTO doctors (user_id, department_id, specialty, qualifications, bio, consultation_fee)
          VALUES ($1,$2,$3,$4,$5,$6) RETURNING id`,
         [u.rows[0].id, deptId, String(b.specialty).trim(), String(b.qualifications).trim(), b.bio || null, fee]);
-      // Default working hours Mon-Fri 09:00-17:00. The doctor can change them later.
-      for (let day = 1; day <= 5; day++) {
-        await db.query(`INSERT INTO doctor_availability (doctor_id, weekday, start_time, end_time) VALUES ($1,$2,'09:00','17:00')`, [d.rows[0].id, day]);
-      }
+      await applyPattern(db, d.rows[0].id, pattern);
     });
   } catch (err) {
+    if (err.http) return res.status(err.http).json({ error: err.message });
     if (err.code === '23505') return res.status(409).json({ error: 'That e-mail is already registered.' });
-    if (err.code === '23503') return res.status(400).json({ error: 'Department not found.' });
     throw err;
   }
   res.status(201).json({ ok: true });
@@ -219,6 +262,55 @@ router.post('/doctors/:id/active', async (req, res) => {
     `UPDATE users SET is_active = $1 WHERE id = (SELECT user_id FROM doctors WHERE id = $2)`,
     [active, parseInt(req.params.id, 10)]);
   if (!rowCount) return res.status(404).json({ error: 'Doctor not found.' });
+  res.json({ ok: true });
+});
+
+// Support / non-clinical personnel (no login)
+router.get('/personnel', async (req, res) => {
+  const { rows } = await query(
+    `SELECT s.id, s.full_name, s.job_title, s.phone, s.schedule, s.is_active, dep.name AS department
+     FROM staff_members s JOIN departments dep ON dep.id = s.department_id
+     ORDER BY dep.name, s.full_name`);
+  res.json(rows.map((r) => ({ ...r, schedule_label: patternLabel(r.schedule) })));
+});
+
+router.post('/personnel', async (req, res) => {
+  const b = req.body;
+  const name = String(b.full_name || '').trim();
+  const job = String(b.job_title || '').trim();
+  const deptId = parseInt(b.department_id, 10);
+  const pattern = PATTERNS[b.schedule] ? b.schedule : 'office_5';
+  if (name.length < 2) return res.status(400).json({ error: 'Enter the full name.' });
+  if (!job) return res.status(400).json({ error: 'Enter the job title.' });
+  if (!deptId) return res.status(400).json({ error: 'Choose a department.' });
+  try {
+    await withTransaction(async (db) => {
+      await checkCapacity(db, deptId);
+      await db.query(`INSERT INTO staff_members (full_name, job_title, department_id, phone, schedule) VALUES ($1,$2,$3,$4,$5)`,
+        [name, job, deptId, String(b.phone || '').trim() || null, pattern]);
+    });
+  } catch (err) {
+    if (err.http) return res.status(err.http).json({ error: err.message });
+    if (err.code === '23503') return res.status(400).json({ error: 'Department not found.' });
+    throw err;
+  }
+  res.status(201).json({ ok: true });
+});
+
+router.post('/personnel/:id/active', async (req, res) => {
+  const active = req.body.is_active === true;
+  const id = parseInt(req.params.id, 10);
+  try {
+    await withTransaction(async (db) => {
+      const m = (await db.query('SELECT department_id FROM staff_members WHERE id = $1', [id])).rows[0];
+      if (!m) throw Object.assign(new Error('Staff member not found.'), { http: 404 });
+      if (active) await checkCapacity(db, m.department_id);   // re-enabling must not break the limit
+      await db.query('UPDATE staff_members SET is_active = $1 WHERE id = $2', [active, id]);
+    });
+  } catch (err) {
+    if (err.http) return res.status(err.http).json({ error: err.message });
+    throw err;
+  }
   res.json({ ok: true });
 });
 

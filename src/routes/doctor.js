@@ -164,7 +164,7 @@ router.put('/availability', async (req, res) => {
     }
   }
   await withTransaction(async (db) => {
-    await db.query('UPDATE doctors SET slot_minutes = $1 WHERE id = $2', [slotMinutes, req.doctorId]);
+    await db.query('UPDATE doctors SET slot_minutes = $1, schedule = NULL WHERE id = $2', [slotMinutes, req.doctorId]);
     await db.query('DELETE FROM doctor_availability WHERE doctor_id = $1', [req.doctorId]);
     for (const h of hours) {
       await db.query('INSERT INTO doctor_availability (doctor_id, weekday, start_time, end_time) VALUES ($1,$2,$3,$4)',

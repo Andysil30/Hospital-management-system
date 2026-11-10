@@ -115,35 +115,67 @@
 
     <!-- ============ STAFF ============ -->
     <div class="tab-pane fade" id="p-staff" role="tabpanel">
+      <div class="panel mb-4">
+        <h2>Department coverage</h2>
+        <div class="panel-sub">Every department should have at least two people on different days or shifts. Human Resources has exactly one.</div>
+        <div class="table-wrap"><table class="table align-middle mb-0">
+          <thead><tr><th>Department</th><th>Group</th><th class="text-end">Clinicians</th><th class="text-end">Personnel</th><th>Status</th></tr></thead>
+          <tbody id="coverage-table"></tbody></table></div>
+      </div>
+
       <div class="row g-4">
-        <div class="col-lg-7">
-          <div class="panel">
-            <h2>Doctors</h2>
-            <div class="panel-sub">Disabling a doctor blocks their login but keeps all records.</div>
+        <div class="col-xl-7">
+          <div class="panel mb-4">
+            <h2>Doctors and clinicians</h2>
+            <div class="panel-sub">They sign in with their e-mail and password on the Doctor portal. Disabling blocks the login but keeps all records.</div>
             <div class="table-wrap"><table class="table align-middle mb-0">
-              <thead><tr><th>Name</th><th>Department</th><th class="text-end">Fee</th><th>Status</th><th></th></tr></thead>
+              <thead><tr><th>Name</th><th>Department</th><th>Working pattern</th><th class="text-end">Fee</th><th>Status</th><th></th></tr></thead>
               <tbody id="doctor-table"></tbody></table></div>
           </div>
+          <div class="panel">
+            <h2>Support and administrative personnel</h2>
+            <div class="panel-sub">Pharmacy, theatre, reception, records, billing, HR and IT. These people do not have a login.</div>
+            <div class="table-wrap"><table class="table align-middle mb-0">
+              <thead><tr><th>Name</th><th>Department</th><th>Job title</th><th>Working pattern</th><th>Status</th><th></th></tr></thead>
+              <tbody id="personnel-table"></tbody></table></div>
+          </div>
         </div>
-        <div class="col-lg-5">
+
+        <div class="col-xl-5">
           <div class="panel mb-4">
             <h2>Add a doctor</h2>
+            <div class="panel-sub">Use a valid e-mail address (for example example@gmail.com) and a password of at least 8 characters.</div>
             <form id="doctor-form" class="row g-2" novalidate>
               <div class="col-12"><label class="form-label mb-0" for="d-name">Full name</label><input class="form-control" id="d-name" required></div>
-              <div class="col-12"><label class="form-label mb-0" for="d-email">E-mail (their login)</label><input class="form-control" id="d-email" type="email" required></div>
-              <div class="col-12"><label class="form-label mb-0" for="d-pass">Temporary password</label><input class="form-control" id="d-pass" type="text" minlength="8" required></div>
-              <div class="col-6"><label class="form-label mb-0" for="d-dept">Department</label><select class="form-select" id="d-dept"></select></div>
+              <div class="col-12"><label class="form-label mb-0" for="d-email">E-mail (their login)</label><input class="form-control" id="d-email" type="email" placeholder="example@gmail.com" autocomplete="off" required></div>
+              <div class="col-12"><label class="form-label mb-0" for="d-pass">Password (at least 8 characters)</label><input class="form-control" id="d-pass" type="text" minlength="8" autocomplete="off" required></div>
+              <div class="col-12"><label class="form-label mb-0" for="d-dept">Department</label><select class="form-select" id="d-dept"></select></div>
+              <div class="col-12"><label class="form-label mb-0" for="d-pattern">Working pattern</label><select class="form-select" id="d-pattern"></select></div>
               <div class="col-6"><label class="form-label mb-0" for="d-fee">Fee (KES)</label><input class="form-control" id="d-fee" type="number" min="0" value="2000" required></div>
-              <div class="col-12"><label class="form-label mb-0" for="d-spec">Specialty</label><input class="form-control" id="d-spec" required></div>
+              <div class="col-6"><label class="form-label mb-0" for="d-spec">Specialty</label><input class="form-control" id="d-spec" required></div>
               <div class="col-12"><label class="form-label mb-0" for="d-qual">Qualifications</label><input class="form-control" id="d-qual" required></div>
               <div class="col-12 mt-3"><button class="btn btn-primary" type="submit">Create doctor account</button></div>
             </form>
           </div>
+          <div class="panel mb-4">
+            <h2>Add support personnel</h2>
+            <form id="personnel-form" class="row g-2" novalidate>
+              <div class="col-12"><label class="form-label mb-0" for="p-name">Full name</label><input class="form-control" id="p-name" required></div>
+              <div class="col-12"><label class="form-label mb-0" for="p-title">Job title</label><input class="form-control" id="p-title" placeholder="e.g. Receptionist" required></div>
+              <div class="col-12"><label class="form-label mb-0" for="p-dept">Department</label><select class="form-select" id="p-dept"></select></div>
+              <div class="col-12"><label class="form-label mb-0" for="p-pattern">Working pattern</label><select class="form-select" id="p-pattern"></select></div>
+              <div class="col-12"><label class="form-label mb-0" for="p-phone">Phone (optional)</label><input class="form-control" id="p-phone" type="tel"></div>
+              <div class="col-12 mt-3"><button class="btn btn-primary" type="submit">Add person</button></div>
+            </form>
+          </div>
           <div class="panel">
             <h2>Add a department</h2>
-            <form id="dept-form" class="d-flex gap-2" novalidate>
-              <input class="form-control" id="dep-name" placeholder="e.g. Ophthalmology" aria-label="Department name" required>
-              <button class="btn btn-outline-primary" type="submit">Add</button>
+            <form id="dept-form" class="row g-2" novalidate>
+              <div class="col-12"><input class="form-control" id="dep-name" placeholder="e.g. Radiotherapy" aria-label="Department name" required></div>
+              <div class="col-8"><select class="form-select" id="dep-cat" aria-label="Group">
+                <option value="specialist">Specialist clinic (bookable)</option><option value="emergency">Emergency and critical care</option>
+                <option value="surgical">Surgery</option><option value="diagnostic">Diagnostics and support</option><option value="admin">Administrative</option></select></div>
+              <div class="col-4"><button class="btn btn-outline-primary w-100" type="submit">Add</button></div>
             </form>
           </div>
         </div>

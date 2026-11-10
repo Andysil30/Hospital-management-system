@@ -127,7 +127,7 @@ Creates 6 departments, 6 doctors, 30 patients, 22 medicines, **60 days of visit 
 | Role | E-mail | Password |
 |------|--------|----------|
 | Admin / Owner | `admin@hospital.test` | `Admin@123` |
-| Doctor | `doctor1@hospital.test` (up to `doctor6`) | `Doctor@123` |
+| Doctor | printed by `npm run db:seed` (an address like `name@gmail.com`; every demo doctor uses the same password) | `Doctor@123` |
 | Patient | `patient@hospital.test` | `Patient@123` |
 
 **Change these passwords (or delete the demo users) before real use.**
@@ -230,6 +230,9 @@ src/routes/public.js      doctor directory
 db/schema.sql             all tables
 db/init.js  db/seed.js    create tables / load demo data
 db/create-admin.js        create the owner account (or reset a password)
+db/org.js                 the 34 departments and their staffing rules
+db/apply-departments.js   adds missing departments and staff (npm run db:departments)
+src/schedules.js          working patterns (Mon-Wed, Thu-Sun, day, night, office)
 api/index.js  vercel.json  entry point and settings for Vercel
 DEPLOY.md                 GitHub + Neon + Vercel guide
 views/home.html           public front page
@@ -257,6 +260,17 @@ Receptionist role; SMS/e-mail reminders; printing prescriptions as PDF; lab resu
 **English / Kiswahili.** The EN | SW switch (login page and patient portal) changes every label, message, date and the bot's language, and remembers your choice. All texts live in `public/js/i18n.js`; correct or add translations there. Messages from the server are translated in the `SERVER_MESSAGES_SW` list. The doctor and owner pages are still English-only (the bot works in both languages there).
 
 **Confirm details before registering.** After the form, a patient sees a review screen listing every detail, must tick "I confirm that the details above are correct", and only then is the account created. The server also refuses any registration without that confirmation, so it cannot be skipped.
+
+## Stage 11d: Departments, staffing and doctor logins
+
+* The hospital now has **34 departments** in five groups: emergency and critical care (ED, ICU, NICU, HDU), specialist clinics (cardiology, oncology, paediatrics, obstetrics and gynaecology, orthopaedics, neurology, dermatology, ENT, eye, dental, psychiatry, urology, gastroenterology, endocrinology, pulmonology and general medicine), surgery (general, plastic, anaesthesiology, operating theatre), diagnostics and support (radiology, laboratory, pharmacy, physiotherapy, nutrition) and administration (reception, medical records, billing, human resources, IT).
+* **Every department has at least two people on different days or shifts.** Most use a split week (one works Monday to Wednesday, the other Thursday to Sunday). The 24-hour services (emergency, ICU, NICU, HDU, anaesthesia, theatre, pharmacy) use one day-shift and one night-shift person.
+* **Human Resources has exactly one person.** The system refuses a second one.
+* **Doctors and clinicians sign in with their e-mail and password** (a valid address such as `example@gmail.com` and at least 8 characters, enforced by the system). Support and administrative staff are listed for the owner and have no login.
+* **Patients can only book clinics that take bookings.** Emergency, ICU, radiology, the laboratory, the pharmacy and the administrative departments are not bookable. HR and the other administrative departments never appear on the public pages.
+* The owner's **Staff** tab shows a coverage table (which department is short of people), all doctors with their working pattern, all support personnel, and forms to add a doctor, a person or a department.
+* **Existing database?** Run `npm run db:init` (adds the new columns safely) and then `npm run db:departments`. It only adds what is missing, keeps your current doctors and logins, and saves the logins of any NEW doctors in `db/staff-credentials.csv` (private; Git ignores it). To start from scratch locally instead, use `npm run db:reset` then `npm run db:seed`.
+* The doctor names and `@gmail.com` addresses created by the scripts are **placeholders**. Replace them with your real staff's details before real use.
 
 ## Stage 11c: Front page and separate sign-in pages
 

@@ -9,7 +9,8 @@
     "db:init": "node db/init.js",
     "db:reset": "node db/init.js --reset",
     "db:seed": "node db/seed.js",
-    "create-admin": "node db/create-admin.js"
+    "create-admin": "node db/create-admin.js",
+    "db:departments": "node db/apply-departments.js"
   },
   "license": "ISC",
   "dependencies": {

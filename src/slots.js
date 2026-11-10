@@ -25,8 +25,10 @@ async function getSlots(doctorId, date) {
   if (now.days_ahead < 0) return { slots: [], note: 'This date has already passed.' };
   if (now.days_ahead > MAX_DAYS_AHEAD) return { slots: [], note: `Bookings open ${MAX_DAYS_AHEAD} days ahead.` };
 
-  const doc = (await query('SELECT slot_minutes FROM doctors WHERE id = $1', [doctorId])).rows[0];
+  const doc = (await query(
+    `SELECT d.slot_minutes, dep.bookable FROM doctors d JOIN departments dep ON dep.id = d.department_id WHERE d.id = $1`, [doctorId])).rows[0];
   if (!doc) return { error: 'Doctor not found.' };
+  if (!doc.bookable) return { error: 'This department does not take online bookings.' };
 
   const off = await query('SELECT reason FROM doctor_off_days WHERE doctor_id = $1 AND off_date = $2', [doctorId, date]);
   if (off.rows.length) return { slots: [], note: 'The doctor is off on this day.' };

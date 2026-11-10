@@ -156,3 +156,29 @@ CREATE TABLE IF NOT EXISTS session (
   expire TIMESTAMP(6) NOT NULL
 );
 CREATE INDEX IF NOT EXISTS ix_session_expire ON session (expire);
+
+-- ---------- 8. Departments: groups, online booking and staffing rules ---
+-- category : which group the department belongs to (used on the front page)
+-- bookable : can patients book an appointment online? (false for ICU, pharmacy, HR...)
+-- max_staff: upper limit of people (Human Resources = 1). NULL means no limit.
+ALTER TABLE departments ADD COLUMN IF NOT EXISTS category VARCHAR(12) NOT NULL DEFAULT 'specialist'
+  CHECK (category IN ('emergency','specialist','surgical','diagnostic','admin'));
+ALTER TABLE departments ADD COLUMN IF NOT EXISTS bookable BOOLEAN NOT NULL DEFAULT TRUE;
+ALTER TABLE departments ADD COLUMN IF NOT EXISTS max_staff INT CHECK (max_staff > 0);
+
+-- Which working pattern a doctor was given (NULL = they set custom hours themselves)
+ALTER TABLE doctors ADD COLUMN IF NOT EXISTS schedule VARCHAR(20);
+
+-- Non-clinical and support personnel (reception, records, billing, HR, pharmacy...).
+-- They are listed for the owner but do not have a login.
+CREATE TABLE IF NOT EXISTS staff_members (
+  id            SERIAL PRIMARY KEY,
+  full_name     VARCHAR(120) NOT NULL,
+  job_title     VARCHAR(80)  NOT NULL,
+  department_id INT NOT NULL REFERENCES departments(id),
+  phone         VARCHAR(30),
+  schedule      VARCHAR(20) NOT NULL,
+  is_active     BOOLEAN NOT NULL DEFAULT TRUE,
+  created_at    TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS ix_staff_department ON staff_members (department_id);

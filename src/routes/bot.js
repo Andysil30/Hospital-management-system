@@ -31,12 +31,25 @@ const HOSPITAL = {
 
 // Words that map a question to a department
 const DEPT_WORDS = [
-  { words: ['cardio', 'heart', 'moyo'], like: 'Cardio%' },
-  { words: ['paed', 'pedia', 'child', 'kids', 'watoto', 'mtoto'], like: 'Paed%' },
-  { words: ['derm', 'skin', 'ngozi'], like: 'Derm%' },
-  { words: ['ortho', 'bone', 'joint', 'mifupa'], like: 'Ortho%' },
-  { words: ['gyn', 'pregnan', 'maternity', 'uzazi', 'mjamzito'], like: 'Gyn%' },
-  { words: ['general', 'family', 'jumla'], like: 'General%' },
+  { words: ['cardio', 'heart', 'moyo'], like: '%Cardio%' },
+  { words: ['paed', 'pedia', 'child', 'kids', 'watoto', 'mtoto'], like: '%Paed%' },
+  { words: ['derm', 'skin', 'ngozi'], like: '%Derm%' },
+  { words: ['ortho', 'bone', 'joint', 'mifupa'], like: '%Ortho%' },
+  { words: ['gyn', 'obstet', 'pregnan', 'maternity', 'uzazi', 'mjamzito'], like: '%Gynae%' },
+  { words: ['general medicine', 'family', 'jumla'], like: 'General Medicine%' },
+  { words: ['neuro', 'brain', 'ubongo'], like: '%Neuro%' },
+  { words: ['oncolog', 'cancer', 'saratani'], like: '%Oncolog%' },
+  { words: [' ent ', 'ear ', 'nose', 'throat', 'sikio', 'koo'], like: '%ENT%' },
+  { words: ['eye', 'ophthal', 'macho', 'jicho'], like: '%Ophthal%' },
+  { words: ['dental', 'dentist', 'tooth', 'teeth', 'meno', 'jino'], like: '%Dental%' },
+  { words: ['psych', 'mental', 'depress', 'akili'], like: '%Psychiatr%' },
+  { words: ['urolog', 'kidney', 'bladder', 'figo'], like: '%Urolog%' },
+  { words: ['gastro', 'stomach', 'bowel', 'tumbo'], like: '%Gastro%' },
+  { words: ['diabet', 'thyroid', 'endocrin', 'sukari'], like: '%Endocrin%' },
+  { words: ['lung', 'chest', 'asthma', 'pulmon', 'pumu'], like: '%Pulmon%' },
+  { words: ['surgery', 'surgeon', 'upasuaji'], like: '%Surgery%' },
+  { words: ['physio', 'rehab', 'therapy'], like: '%Physical Therapy%' },
+  { words: ['nutrition', 'diet', 'lishe'], like: '%Nutrition%' },
 ];
 
 const suggestionsFor = (user, lang) => {
@@ -193,21 +206,22 @@ const intents = [
   },
   {
     name: 'departments',
-    kw: ['department', 'departments', 'idara', 'services', 'huduma', 'specialties'],
+    kw: ['department', 'departments', 'idara', 'services', 'huduma', 'specialties', 'clinics'],
     run: async () => {
-      const { rows } = await query('SELECT name FROM departments ORDER BY name');
+      const { rows } = await query(`SELECT name FROM departments WHERE bookable AND category <> 'admin' ORDER BY name`);
       const list = rows.map((r) => r.name).join(', ');
-      return L(`Our departments: ${list}. Pick one under "Find a doctor" to see its doctors.`, `Idara zetu: ${list}. Chagua moja chini ya "Tafuta daktari" kuona madaktari wake.`);
+      return L(`You can book these clinics online: ${list}. Emergency, ICU, NICU and HDU are walk-in services open 24 hours (call 999 / 112 in an emergency). Radiology, the laboratory and the pharmacy work on a doctor's referral or prescription.`,
+        `Unaweza kuweka miadi mtandaoni kwa kliniki hizi: ${list}. Dharura, ICU, NICU na HDU ni huduma za moja kwa moja saa 24 (dharura piga 999 / 112). Radiolojia, maabara na famasia hufanya kazi kwa rufaa au maagizo ya daktari.`);
     },
   },
   {
     name: 'doctors',
-    kw: ['doctor', 'doctors', 'specialist', 'daktari', 'madaktari', 'mtaalamu', 'cardio', 'heart', 'moyo', 'paed', 'child', 'watoto', 'derm', 'skin', 'ngozi', 'ortho', 'bone', 'mifupa', 'gyn', 'pregnan', 'uzazi'],
+    kw: ['doctor', 'doctors', 'specialist', 'daktari', 'madaktari', 'mtaalamu', ...DEPT_WORDS.flatMap((d) => d.words)],
     run: async (ctx) => {
       const hit = DEPT_WORDS.find((d) => d.words.some((w) => ctx.q.includes(w)));
       const { rows } = await query(
         `SELECT u.full_name, d.specialty, dep.name AS dept FROM doctors d
-         JOIN users u ON u.id = d.user_id AND u.is_active JOIN departments dep ON dep.id = d.department_id
+         JOIN users u ON u.id = d.user_id AND u.is_active JOIN departments dep ON dep.id = d.department_id AND dep.bookable
          WHERE ($1::text IS NULL OR dep.name ILIKE $1) ORDER BY dep.name, u.full_name LIMIT 8`, [hit ? hit.like : null]);
       if (!rows.length) return L('I could not find doctors for that. Open "Find a doctor" to browse everyone.', 'Sikupata madaktari kwa hilo. Fungua "Tafuta daktari" kuona wote.');
       const list = rows.map((r) => `${r.full_name} (${r.specialty})`).join('; ');
