@@ -145,3 +145,5 @@ body:not(.portal-patient) [data-only="patient"] { display: none !important; }
   .auth-eyebrow { margin-bottom: .6rem; }
   .auth-center { align-items: flex-start; }
 }
+.team-card { display: flex; flex-direction: column; align-items: center; }
+.team-card .btn { margin-top: auto; }
