@@ -124,10 +124,28 @@ async function loadAwards() {
 $('#award-period').addEventListener('change', () => loadAwards().catch((e) => toast(e.message, 'error')));
 
 // ===================== PHARMACY =====================
-let medCache = [];
+let medAll = [];
+let medPage = 1;
+const MED_PAGE = 25;
+
 async function loadMedicines() {
-  medCache = await api('/admin/medicines?filter=' + state.stockFilter);
-  $('#med-table').innerHTML = medCache.map((m) => {
+  medAll = await api('/admin/medicines?filter=' + state.stockFilter);
+  const keep = $('#med-cat').value;
+  const cats = [...new Set(medAll.map((m) => m.category).filter(Boolean))].sort();
+  $('#med-cat').innerHTML = '<option value="">All groups</option>' + cats.map((c) => `<option>${esc(c)}</option>`).join('');
+  if (cats.includes(keep)) $('#med-cat').value = keep;
+  renderMedicines();
+}
+
+function renderMedicines() {
+  const q = $('#med-search').value.trim().toLowerCase();
+  const cat = $('#med-cat').value;
+  const list = medAll.filter((m) => (!cat || m.category === cat) && (!q || m.name.toLowerCase().includes(q) || (m.category || '').toLowerCase().includes(q)));
+  const pages = Math.max(1, Math.ceil(list.length / MED_PAGE));
+  medPage = Math.min(Math.max(1, medPage), pages);
+  const slice = list.slice((medPage - 1) * MED_PAGE, medPage * MED_PAGE);
+
+  $('#med-table').innerHTML = slice.map((m) => {
     let alert = '<span class="chip ok">OK</span>';
     if (m.expired) alert = '<span class="chip bad">Expired</span>';
     else if (m.low_stock) alert = '<span class="chip bad">Low stock</span>';
@@ -137,10 +155,16 @@ async function loadMedicines() {
       <td class="text-end">${m.stock_qty}</td><td class="text-end">${m.reorder_level}</td>
       <td>${m.expiry_date ? fmtDate(m.expiry_date) : '-'}</td><td>${alert}</td>
       <td class="text-end"><button class="btn btn-sm btn-outline-primary" data-action="med-edit" data-id="${m.id}">Edit / restock</button></td></tr>`;
-  }).join('') || `<tr><td colspan="8">${empty('Nothing to show for this filter.')}</td></tr>`;
+  }).join('') || `<tr><td colspan="8">${empty('No medicines match.')}</td></tr>`;
+  $('#med-count').textContent = `Showing ${slice.length} of ${list.length} medicine${list.length === 1 ? '' : 's'}`;
+  $('#med-pager').textContent = `Page ${medPage} of ${pages}`;
 }
 
-actions.stockfilter = (btn) => { state.stockFilter = btn.dataset.value; markActive('stock-filter', state.stockFilter); loadMedicines().catch((e) => toast(e.message, 'error')); };
+$('#med-search').addEventListener('input', () => { medPage = 1; renderMedicines(); });
+$('#med-cat').addEventListener('change', () => { medPage = 1; renderMedicines(); });
+actions['med-prev'] = () => { medPage--; renderMedicines(); };
+actions['med-next'] = () => { medPage++; renderMedicines(); };
+actions.stockfilter = (btn) => { state.stockFilter = btn.dataset.value; medPage = 1; markActive('stock-filter', state.stockFilter); loadMedicines().catch((e) => toast(e.message, 'error')); };
 
 const medModal = new bootstrap.Modal('#medModal');
 function openMed(m) {
@@ -155,7 +179,7 @@ function openMed(m) {
   medModal.show();
 }
 actions['med-new'] = () => openMed(null);
-actions['med-edit'] = (btn) => openMed(medCache.find((m) => m.id === Number(btn.dataset.id)));
+actions['med-edit'] = (btn) => openMed(medAll.find((m) => m.id === Number(btn.dataset.id)));
 
 $('#med-form').addEventListener('submit', (e) => {
   e.preventDefault();
@@ -172,6 +196,120 @@ $('#med-form').addEventListener('submit', (e) => {
     toast('Medicine saved.');
     await loadMedicines();
   });
+});
+
+// ---------- Import medicines from a CSV file ----------
+const importModal = new bootstrap.Modal('#importModal');
+let importRows = [];
+
+// Reads CSV text (handles quoted cells, commas inside quotes, semicolon or tab separated files)
+function parseCSV(text) {
+  text = text.replace(/^\uFEFF/, '');
+  const first = text.split(/\r?\n/, 1)[0] || '';
+  const delim = [',', ';', '\t'].map((d) => [d, first.split(d).length]).sort((a, b) => b[1] - a[1])[0][0];
+  const rows = [];
+  let row = [], cell = '', quoted = false;
+  for (let i = 0; i < text.length; i++) {
+    const c = text[i];
+    if (quoted) {
+      if (c === '"' && text[i + 1] === '"') { cell += '"'; i++; }
+      else if (c === '"') quoted = false;
+      else cell += c;
+    } else if (c === '"') quoted = true;
+    else if (c === delim) { row.push(cell); cell = ''; }
+    else if (c === '\n' || c === '\r') {
+      if (c === '\r' && text[i + 1] === '\n') i++;
+      row.push(cell); cell = '';
+      if (row.some((x) => x.trim() !== '')) rows.push(row);
+      row = [];
+    } else cell += c;
+  }
+  row.push(cell);
+  if (row.some((x) => x.trim() !== '')) rows.push(row);
+  return rows;
+}
+
+const FIELD_NAMES = {
+  name: ['name', 'medicine', 'medicine name', 'drug', 'drug name', 'product', 'item'],
+  category: ['category', 'group', 'class', 'type'],
+  unit_price: ['unit_price', 'unit price', 'price', 'cost', 'selling price'],
+  stock_qty: ['stock_qty', 'stock', 'quantity', 'qty', 'in stock'],
+  reorder_level: ['reorder_level', 'reorder level', 'reorder', 'minimum', 'min stock'],
+  expiry_date: ['expiry_date', 'expiry date', 'expiry', 'expires', 'exp', 'exp date', 'expiration date'],
+};
+
+// 30/06/2027, 30-6-2027, 06/2027 and 2027-06 are all turned into 2027-06-30 style dates
+function toISODate(v) {
+  v = String(v || '').trim();
+  if (!v) return '';
+  let m;
+  if (/^\d{4}-\d{2}-\d{2}$/.test(v)) return v;
+  if ((m = v.match(/^(\d{1,2})[\/.-](\d{1,2})[\/.-](\d{4})$/))) return `${m[3]}-${m[2].padStart(2, '0')}-${m[1].padStart(2, '0')}`;
+  const lastDay = (y, mo) => String(new Date(Date.UTC(+y, +mo, 0)).getUTCDate()).padStart(2, '0');
+  if ((m = v.match(/^(\d{1,2})[\/.-](\d{4})$/))) return `${m[2]}-${m[1].padStart(2, '0')}-${lastDay(m[2], m[1])}`;
+  if ((m = v.match(/^(\d{4})[\/.-](\d{1,2})$/))) return `${m[1]}-${m[2].padStart(2, '0')}-${lastDay(m[1], m[2])}`;
+  return v;
+}
+
+actions['med-import'] = () => {
+  $('#imp-file').value = '';
+  $('#imp-preview').innerHTML = '';
+  $('#imp-result').innerHTML = '';
+  $('#imp-go').disabled = true;
+  importRows = [];
+  importModal.show();
+};
+
+actions['csv-template'] = () => {
+  const csv = 'name,category,unit_price,stock_qty,reorder_level,expiry_date\n'
+    + 'Paracetamol 500mg,Pain & Inflammation,5,600,150,2027-06-30\n'
+    + 'Amoxicillin Syrup 125mg/5ml,Antibiotics,180,40,20,2026-12-31\n';
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv' }));
+  a.download = 'medicines-template.csv';
+  a.click();
+  URL.revokeObjectURL(a.href);
+};
+
+$('#imp-file').addEventListener('change', async (e) => {
+  importRows = [];
+  $('#imp-go').disabled = true;
+  $('#imp-result').innerHTML = '';
+  const file = e.target.files[0];
+  if (!file) return;
+  const table = parseCSV(await file.text());
+  if (table.length < 2) { $('#imp-preview').innerHTML = '<div class="alert alert-danger">The file needs a header row and at least one medicine.</div>'; return; }
+
+  const header = table[0].map((h) => h.trim().toLowerCase());
+  const col = {};
+  for (const [field, names] of Object.entries(FIELD_NAMES)) col[field] = header.findIndex((h) => names.includes(h));
+  if (col.name < 0) { $('#imp-preview').innerHTML = '<div class="alert alert-danger">No "name" column was found in the first row. Check the column names (see the template).</div>'; return; }
+
+  importRows = table.slice(1).map((cells, i) => {
+    const get = (f) => (col[f] >= 0 ? String(cells[col[f]] ?? '').trim() : '');
+    return { line: i + 2, name: get('name'), category: get('category'), unit_price: get('unit_price').replace(/,/g, ''), stock_qty: get('stock_qty').replace(/,/g, ''), reorder_level: get('reorder_level'), expiry_date: toISODate(get('expiry_date')) };
+  });
+  const found = Object.keys(FIELD_NAMES).filter((f) => col[f] >= 0).join(', ');
+  $('#imp-preview').innerHTML = `<div class="alert alert-success py-2">${importRows.length} row${importRows.length === 1 ? '' : 's'} found. Columns used: ${esc(found)}.</div>
+    <div class="table-wrap"><table class="table table-sm mb-0"><thead><tr><th>Name</th><th>Group</th><th>Price</th><th>Stock</th><th>Expiry</th></tr></thead><tbody>
+    ${importRows.slice(0, 5).map((r) => `<tr><td>${esc(r.name)}</td><td>${esc(r.category)}</td><td>${esc(r.unit_price)}</td><td>${esc(r.stock_qty)}</td><td>${esc(r.expiry_date)}</td></tr>`).join('')}
+    </tbody></table></div>${importRows.length > 5 ? '<div class="small text-muted mt-1">First 5 rows shown.</div>' : ''}`;
+  $('#imp-go').disabled = false;
+});
+
+actions['csv-go'] = (btn) => run(btn, async () => {
+  const mode = $('#imp-mode').value;
+  const total = { added: 0, updated: 0, skipped: 0, errors: [] };
+  for (let i = 0; i < importRows.length; i += 250) {
+    $('#imp-result').innerHTML = `<div class="text-muted">Importing ${Math.min(i + 250, importRows.length)} of ${importRows.length}...</div>`;
+    const r = await api('/admin/medicines/import', { method: 'POST', body: { mode, rows: importRows.slice(i, i + 250) } });
+    total.added += r.added; total.updated += r.updated; total.skipped += r.skipped; total.errors.push(...r.errors);
+  }
+  $('#imp-result').innerHTML = `<div class="alert ${total.errors.length ? 'alert-warning' : 'alert-success'}">
+    <strong>Done.</strong> Added ${total.added}, updated ${total.updated}, skipped ${total.skipped}${total.errors.length ? `, ${total.errors.length} row(s) had problems` : ''}.
+    ${total.errors.length ? `<ul class="mb-0 mt-2 small">${total.errors.slice(0, 20).map((e) => `<li>Line ${e.line}: ${esc(e.error)}</li>`).join('')}${total.errors.length > 20 ? '<li>...and more</li>' : ''}</ul>` : ''}</div>`;
+  btn.disabled = true;
+  await loadMedicines();
 });
 
 // ===================== STAFF =====================

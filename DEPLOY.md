@@ -77,7 +77,12 @@ A browser window opens asking you to sign in to GitHub. Approve it. Refresh the 
    npm run db:departments
    ```
    This adds all 34 departments and two doctors or staff for each one (one person for Human Resources). Each doctor gets a random password, saved with their e-mail in `db/staff-credentials.csv` on your computer. Open that file, give each doctor their own e-mail and password, then **delete the file**. It is already ignored by Git, so it will not be uploaded. The names and `@gmail.com` addresses are placeholders: replace them with your real staff from the Owner portal's Staff tab.
-7. Close the terminal window (or run `Remove-Item Env:DATABASE_URL`) so the setting disappears.
+7. **Add the medicine list** (optional, same terminal window):
+   ```
+   npm run db:medicines
+   ```
+   This adds about 210 medicines with sample stock and expiry dates, which is fine for a demonstration. For a real pharmacy use `npm run db:medicines -- --empty` instead (names and prices only), then enter your real stock and the expiry dates from the boxes in the Pharmacy tab, or import a CSV file there.
+8. Close the terminal window (or run `Remove-Item Env:DATABASE_URL`) so the setting disappears.
 
 ### Demo data on the online site? (read this)
 `npm run db:seed` would fill the online database with the demo doctors and patients. Their passwords (`Doctor@123`, `Patient@123`) are written in the code and the README, so **anyone could sign in to them on a public website**. Only do this for a short demonstration. If you do, afterwards either run `npm run db:reset` in the same terminal window to wipe it, or reset each demo password with `npm run create-admin -- "x" doctor1@hospital.test "new-long-password"`. For a normal online site, skip the seed: create your owner account, then add doctors from the Owner portal's Staff tab, and let patients register themselves.

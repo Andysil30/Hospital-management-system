@@ -22,17 +22,17 @@ const LAST = ['Odhiambo', 'Kiprop', 'Achieng', 'Mutua', 'Wafula', 'Chebet', 'Omo
 
 // name, category, price, stock, reorder level, days until expiry
 const MEDICINES = [
-  ['Paracetamol 500mg', 'Analgesic', 5, 600, 100, 540], ['Ibuprofen 400mg', 'Analgesic', 8, 350, 80, 480],
-  ['Amoxicillin 500mg', 'Antibiotic', 20, 40, 100, 300], ['Azithromycin 500mg', 'Antibiotic', 60, 220, 50, 400],
-  ['Ciprofloxacin 500mg', 'Antibiotic', 25, 180, 50, 45], ['Metformin 500mg', 'Diabetes', 6, 700, 150, 600],
+  ['Paracetamol 500mg', 'Pain & Inflammation', 5, 600, 100, 540], ['Ibuprofen 400mg', 'Pain & Inflammation', 8, 350, 80, 480],
+  ['Amoxicillin 500mg', 'Antibiotics', 20, 40, 100, 300], ['Azithromycin 500mg', 'Antibiotics', 60, 220, 50, 400],
+  ['Ciprofloxacin 500mg', 'Antibiotics', 25, 180, 50, 45], ['Metformin 500mg', 'Diabetes & Endocrine', 6, 700, 150, 600],
   ['Amlodipine 5mg', 'Cardiovascular', 9, 420, 100, 520], ['Atorvastatin 20mg', 'Cardiovascular', 18, 15, 60, 380],
-  ['Losartan 50mg', 'Cardiovascular', 14, 260, 80, 450], ['Salbutamol Inhaler', 'Respiratory', 350, 60, 20, 350],
-  ['Cetirizine 10mg', 'Antihistamine', 4, 500, 100, 700], ['Omeprazole 20mg', 'Gastro', 12, 310, 80, 30],
-  ['ORS Sachets', 'Rehydration', 15, 400, 100, 420], ['Zinc 20mg', 'Supplement', 7, 280, 60, 365],
-  ['Hydrocortisone Cream', 'Dermatology', 180, 70, 25, 280], ['Clotrimazole Cream', 'Dermatology', 150, 12, 25, 250],
-  ['Diclofenac Gel', 'Analgesic', 220, 90, 30, 330], ['Folic Acid 5mg', 'Supplement', 3, 800, 150, 600],
-  ['Ferrous Sulphate', 'Supplement', 5, 520, 100, 500], ['Artemether/Lumefantrine', 'Antimalarial', 120, 150, 60, 20],
-  ['Loratadine 10mg', 'Antihistamine', 6, 240, 60, 600], ['Expired Test Syrup', 'Cough & Cold', 90, 25, 20, -15],
+  ['Losartan 50mg', 'Cardiovascular', 14, 260, 80, 450], ['Salbutamol Inhaler', 'Respiratory & Allergy', 350, 60, 20, 350],
+  ['Cetirizine 10mg', 'Respiratory & Allergy', 4, 500, 100, 700], ['Omeprazole 20mg', 'Gastrointestinal', 12, 310, 80, 30],
+  ['ORS Sachets', 'Gastrointestinal', 15, 400, 100, 420], ['Zinc 20mg', 'Vitamins & Supplements', 7, 280, 60, 365],
+  ['Hydrocortisone Cream', 'Skin & Topical', 180, 70, 25, 280], ['Clotrimazole Cream', 'Skin & Topical', 150, 12, 25, 250],
+  ['Diclofenac Gel', 'Pain & Inflammation', 220, 90, 30, 330], ['Folic Acid 5mg', 'Vitamins & Supplements', 3, 800, 150, 600],
+  ['Ferrous Sulphate', 'Vitamins & Supplements', 5, 520, 100, 500], ['Artemether/Lumefantrine', 'Antimalarials & Antiparasitics', 120, 150, 60, 20],
+  ['Loratadine 10mg', 'Respiratory & Allergy', 6, 240, 60, 600], ['Expired Test Syrup', 'Respiratory & Allergy', 90, 25, 20, -15],
 ];
 
 const REASONS = ['Fever and headache', 'Routine check-up', 'Follow-up visit', 'Skin rash', 'Chest discomfort', 'Back pain', 'Cough for two weeks', 'Review of test results'];

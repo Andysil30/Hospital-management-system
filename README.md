@@ -261,6 +261,16 @@ Receptionist role; SMS/e-mail reminders; printing prescriptions as PDF; lab resu
 
 **Confirm details before registering.** After the form, a patient sees a review screen listing every detail, must tick "I confirm that the details above are correct", and only then is the account created. The server also refuses any registration without that confirmation, so it cannot be skipped.
 
+## Stage 11f: Pharmacy: many medicines and expiry dates
+
+* **Starter catalogue.** `npm run db:medicines` adds about 210 commonly used medicines in 15 groups (antibiotics, cardiovascular, pain and inflammation, diabetes, IV fluids and emergency, and more) with indicative prices, a reorder level, and **sample** stock and expiry dates so the low-stock and expiry alerts have something to show. Run it again at any time: it never overwrites existing stock. Use `npm run db:medicines -- --empty` to add only the names, groups and prices (stock 0, no expiry) if you want to enter real stock yourself.
+* **Controlled drugs** (such as morphine, diazepam and tramadol) are deliberately left out. They need special legal handling.
+* **Prices are placeholders.** Set your real prices in the Pharmacy tab.
+* **Expiry dates cannot come from an online list.** An expiry date belongs to a specific batch and is printed on the box, so it has to be entered from your real stock. Free sources for medicine names and groups include the WHO Model List of Essential Medicines, Kenya's Essential Medicines List (Ministry of Health), and the US openFDA and RxNorm services. None of them contains expiry dates, stock or your prices.
+* **Importing your own list.** In the owner's **Pharmacy** tab, press **Import CSV**. The first row of the file must name the columns: `name` (required), `category`, `unit_price`, `stock_qty`, `reorder_level` and `expiry_date` (2027-06-30 or 30/06/2027 both work; a "Download a template" button gives you an example). Choose whether medicines that already exist are skipped or updated. Rows with problems are listed by line number and the good rows are still imported. Up to a few thousand rows are fine.
+* **Finding things.** The Pharmacy tab has a search box, a group filter and paging, plus the low-stock and expiring filters. A doctor's prescribing list is grouped by medicine type, and never offers expired or out-of-stock medicines.
+* **Limit:** each medicine has a single expiry date. Real pharmacies receive several batches with different dates. Batch tracking (one row per delivery) is a good next step.
+
 ## Stage 11e: Dashboard layout
 
 All three dashboards now use the same layout: a dark sidebar menu on the left (coloured per role), a top bar with a personal greeting, the date and your name, and the content on the right. The **doctor dashboard** opens on a summary: today's appointments, completed visits, patients this month and rating, a two-line chart (patients seen over the last 14 days and booked for the next 6), a schedule panel with a day selector, a next-patient card, a rating breakdown and recent feedback. The full queue and consultation table is under "Queue and consultations". Colours and layout are in `public/css/style.css` (search for "Dashboard shell"); the data comes from `/api/doctor/overview`.

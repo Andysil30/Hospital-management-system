@@ -150,6 +150,50 @@ router.put('/medicines/:id', async (req, res) => {
   res.json({ ok: true });
 });
 
+// Bulk import (from a CSV file chosen in the Pharmacy tab). The browser sends up to 300 rows at a time.
+//   mode "add"    -> medicines that already exist are skipped
+//   mode "update" -> medicines that already exist are updated with the new values
+const MAX_IMPORT_ROWS = 300;
+const isRealDate = (v) => /^\d{4}-\d{2}-\d{2}$/.test(v) && new Date(v + 'T00:00:00Z').toISOString().slice(0, 10) === v;
+
+router.post('/medicines/import', async (req, res) => {
+  const rows = Array.isArray(req.body.rows) ? req.body.rows : null;
+  const update = req.body.mode === 'update';
+  if (!rows || !rows.length) return res.status(400).json({ error: 'There are no rows to import.' });
+  if (rows.length > MAX_IMPORT_ROWS) return res.status(400).json({ error: `Send at most ${MAX_IMPORT_ROWS} rows at a time.` });
+
+  const result = { added: 0, updated: 0, skipped: 0, errors: [] };
+  await withTransaction(async (db) => {
+    for (let i = 0; i < rows.length; i++) {
+      const r = rows[i] || {};
+      const line = r.line || i + 1;
+      const name = String(r.name || '').trim().slice(0, 120);
+      const price = r.unit_price === undefined || r.unit_price === '' ? 0 : Number(r.unit_price);
+      const stock = r.stock_qty === undefined || r.stock_qty === '' ? 0 : Number(r.stock_qty);
+      const reorder = r.reorder_level === undefined || r.reorder_level === '' ? 20 : Number(r.reorder_level);
+      const expiry = r.expiry_date ? String(r.expiry_date).trim() : null;
+      if (!name) { result.errors.push({ line, error: 'Missing medicine name' }); continue; }
+      if (!(price >= 0)) { result.errors.push({ line, error: `${name}: price is not a number` }); continue; }
+      if (!(Number.isInteger(stock) && stock >= 0)) { result.errors.push({ line, error: `${name}: stock must be a whole number of 0 or more` }); continue; }
+      if (!(Number.isInteger(reorder) && reorder >= 0)) { result.errors.push({ line, error: `${name}: reorder level must be a whole number of 0 or more` }); continue; }
+      if (expiry && !isRealDate(expiry)) { result.errors.push({ line, error: `${name}: expiry date must look like 2027-06-30` }); continue; }
+
+      const conflict = update
+        ? `ON CONFLICT (name) DO UPDATE SET category = EXCLUDED.category, unit_price = EXCLUDED.unit_price,
+             stock_qty = EXCLUDED.stock_qty, reorder_level = EXCLUDED.reorder_level, expiry_date = EXCLUDED.expiry_date`
+        : 'ON CONFLICT (name) DO NOTHING';
+      const out = await db.query(
+        `INSERT INTO medicines (name, category, unit_price, stock_qty, reorder_level, expiry_date)
+         VALUES ($1,$2,$3,$4,$5,$6) ${conflict} RETURNING (xmax = 0) AS inserted`,
+        [name, String(r.category || '').trim().slice(0, 60) || null, price, stock, reorder, expiry]);
+      if (!out.rows.length) result.skipped++;
+      else if (out.rows[0].inserted) result.added++;
+      else result.updated++;
+    }
+  });
+  res.json(result);
+});
+
 // ---------- Departments, doctors and personnel ------------------------
 const { PATTERNS, applyPattern, patternLabel } = require('../schedules');
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;           // e.g. example@gmail.com

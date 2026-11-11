@@ -76,12 +76,20 @@ actions['view-history'] = (btn) => run(btn, async () => {
   toast(last ? `${fmtDate(last.date)}: ${last.diagnosis}` : 'No record found.');
 });
 
+// Medicines grouped by type (Antibiotics, Cardiovascular...) so a long list stays easy to scan
+function medOptions() {
+  const groups = {};
+  medicines.forEach((m) => { (groups[m.category || 'Other'] = groups[m.category || 'Other'] || []).push(m); });
+  return Object.keys(groups).sort().map((g) =>
+    `<optgroup label="${esc(g)}">${groups[g].map((m) => `<option value="${m.id}">${esc(m.name)} (${m.stock_qty} left)</option>`).join('')}</optgroup>`).join('');
+}
+
 actions['rx-add'] = () => {
   const row = document.createElement('div');
   row.className = 'row g-2 mb-2 rx-row align-items-end';
   row.innerHTML = `
     <div class="col-12 col-md-4"><label class="form-label small mb-0">Medicine</label>
-      <select class="form-select form-select-sm rx-med">${medicines.map((m) => `<option value="${m.id}">${esc(m.name)} (${m.stock_qty} left)</option>`).join('')}</select></div>
+      <select class="form-select form-select-sm rx-med">${medOptions()}</select></div>
     <div class="col-6 col-md-2"><label class="form-label small mb-0">Dose</label><input class="form-control form-control-sm rx-dose" placeholder="1 tablet"></div>
     <div class="col-6 col-md-2"><label class="form-label small mb-0">How often</label><input class="form-control form-control-sm rx-freq" placeholder="Twice daily"></div>
     <div class="col-4 col-md-1"><label class="form-label small mb-0">Days</label><input class="form-control form-control-sm rx-days" type="number" min="1" value="5"></div>
