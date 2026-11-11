@@ -65,15 +65,33 @@ app.use('/api/patient', require('./src/routes/patient'));
 app.use('/api/bot', require('./src/routes/bot'));
 app.use('/api', (req, res) => res.status(404).json({ error: 'Not found.' }));
 
-// 6. Pages. The front page is open; each sign-in page is separate; each dashboard needs the right role.
+// 6. Pages. Public pages share one header and footer (views/partials). Each sign-in page is separate;
+//    each dashboard needs the right role.
 const view = (name) => (req, res) => res.sendFile(path.join(__dirname, 'views', name));
 const PORTALS = ['patient', 'doctor', 'owner'];
 
-app.get('/', (req, res, next) => {
+async function renderPublic(res, file, replacements = {}) {
+  try {
+    const read = (...p) => fs.promises.readFile(path.join(__dirname, 'views', ...p), 'utf8');
+    const [page, header, footer] = await Promise.all([read(file), read('partials', 'site-header.html'), read('partials', 'site-footer.html')]);
+    let html = page.replace('<!--SITE_HEADER-->', header).replace('<!--SITE_FOOTER-->', footer);
+    for (const [key, value] of Object.entries(replacements)) html = html.split(key).join(value);
+    res.type('html').send(html);
+  } catch (err) {
+    console.error(err);
+    res.status(500).send('Page unavailable.');
+  }
+}
+
+// Front page (signed-in users go straight to their own dashboard)
+app.get('/', (req, res) => {
   const u = req.session.user;
   if (u) return res.redirect(HOME[u.role]);
-  next();
-}, view('home.html'));
+  renderPublic(res, 'home.html');
+});
+// Public information pages: anyone may read these
+app.get('/departments', (req, res) => renderPublic(res, 'departments.html'));
+app.get('/doctors', (req, res) => renderPublic(res, 'doctors.html'));
 
 // /login/patient, /login/doctor, /login/owner use one template, filled in per portal.
 app.get('/login/:portal', (req, res) => {
@@ -81,10 +99,7 @@ app.get('/login/:portal', (req, res) => {
   if (!PORTALS.includes(portal)) return res.redirect('/');
   const u = req.session.user;
   if (u) return res.redirect(HOME[u.role]);
-  fs.readFile(path.join(__dirname, 'views', 'login.html'), 'utf8', (err, html) => {
-    if (err) return res.status(500).send('Page unavailable.');
-    res.type('html').send(html.split('__PORTAL__').join(portal));
-  });
+  renderPublic(res, 'login.html', { __PORTAL__: portal });
 });
 
 app.get('/admin', requireRolePage('admin'), view('admin.html'));

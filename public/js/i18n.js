@@ -7,6 +7,10 @@
 const DICT = {
   en: {
     'lang.label': 'Language',
+    'nav.home': 'Home', 'hero.staff': 'Staff sign in:',
+    'hero.card1.t': 'Book in minutes', 'hero.card1.d': 'Pick a doctor and an open time.',
+    'hero.card2.t': 'Emergency, 24 hours', 'hero.card2.d': 'Call 999 / 112',
+    'docs.page.title': 'Our doctors', 'docs.page.sub': 'Browse our specialists and book a visit.',
 
     // ---- Front page ----
     'nav.services': 'Departments', 'nav.doctors': 'Our doctors', 'nav.how': 'How it works', 'nav.signin': 'Sign in',
@@ -118,6 +122,10 @@ const DICT = {
 
   sw: {
     'lang.label': 'Lugha',
+    'nav.home': 'Mwanzo', 'hero.staff': 'Wafanyakazi ingia:',
+    'hero.card1.t': 'Weka miadi kwa dakika', 'hero.card1.d': 'Chagua daktari na saa iliyo wazi.',
+    'hero.card2.t': 'Dharura, saa 24', 'hero.card2.d': 'Piga 999 / 112',
+    'docs.page.title': 'Madaktari wetu', 'docs.page.sub': 'Angalia wataalamu wetu na uweke ziara.',
 
     // ---- Front page ----
     'nav.services': 'Idara', 'nav.doctors': 'Madaktari wetu', 'nav.how': 'Jinsi inavyofanya kazi', 'nav.signin': 'Ingia',

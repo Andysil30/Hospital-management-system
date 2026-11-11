@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Our doctors · Hospital Management System</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+  <link href="/assets/css/style.css" rel="stylesheet">
+  <link href="/assets/css/site.css" rel="stylesheet">
+</head>
+<body class="public">
+<!--SITE_HEADER-->
+<main>
+  <section class="page-head">
+    <div class="container-xl"><h1 data-i18n="docs.page.title">Our doctors</h1><p data-i18n="docs.page.sub"></p></div>
+  </section>
+  <section class="section">
+    <div class="container-xl">
+      <div class="d-flex flex-wrap align-items-center gap-2 mb-4">
+        <label class="form-label mb-0" for="dept-filter" data-i18n="dept.label">Department</label>
+        <select class="form-select w-auto" id="dept-filter"><option value="" data-i18n="dept.all">All departments</option></select>
+      </div>
+      <div class="row g-3" id="doctor-cards"></div>
+    </div>
+  </section>
+</main>
+<!--SITE_FOOTER-->
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+<script src="/assets/js/i18n.js"></script>
+<script src="/assets/js/common.js"></script>
+<script src="/assets/js/site.js"></script>
+<script src="/assets/js/bot.js"></script>
+<script src="/assets/js/doctors.js"></script>
+</body>
+</html>

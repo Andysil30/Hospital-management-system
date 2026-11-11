@@ -235,7 +235,11 @@ db/apply-departments.js   adds missing departments and staff (npm run db:departm
 src/schedules.js          working patterns (Mon-Wed, Thu-Sun, day, night, office)
 api/index.js  vercel.json  entry point and settings for Vercel
 DEPLOY.md                 GitHub + Neon + Vercel guide
-views/home.html           public front page
+views/home.html           public front page (menu + doctor picture)
+views/departments.html    public departments page
+views/doctors.html        public doctor directory
+views/partials/           shared header and footer of the public pages
+public/img/               put hero-doctor.jpg here to use a real photo
 views/login.html          sign-in template (patient / doctor / owner)
 views/admin|doctor|patient.html  the three dashboards
 public/js/*.js            page logic and charts
@@ -260,6 +264,14 @@ Receptionist role; SMS/e-mail reminders; printing prescriptions as PDF; lab resu
 **English / Kiswahili.** The EN | SW switch (login page and patient portal) changes every label, message, date and the bot's language, and remembers your choice. All texts live in `public/js/i18n.js`; correct or add translations there. Messages from the server are translated in the `SERVER_MESSAGES_SW` list. The doctor and owner pages are still English-only (the bot works in both languages there).
 
 **Confirm details before registering.** After the form, a patient sees a review screen listing every detail, must tick "I confirm that the details above are correct", and only then is the account created. The server also refuses any registration without that confirmation, so it cannot be skipped.
+
+## Stage 11g: Simple front page, separate public pages and a new palette
+
+* The **front page** (`/`) is now deliberately simple: a menu (Home, Departments, Our doctors, Sign in) and a hero with a picture of a doctor. Nothing else.
+* **Departments** (`/departments`) and **Our doctors** (`/doctors`) are their own public pages, reached from the menu. Patients also see the doctor directory and booking inside their dashboard under "Find a doctor".
+* The menu and footer are shared by all public pages (`views/partials/site-header.html` and `site-footer.html`), so a change there appears everywhere.
+* **The doctor picture.** By default a drawn illustration is shown. To use a real photo, save it as `public/img/hero-doctor.jpg` (or `.png` / `.webp`), portrait shaped (about 1200 x 1500 pixels). It replaces the illustration automatically. Use a photo you have the right to use (your own, or from a free-licence site such as Unsplash or Pexels).
+* **Colours.** The front page, the Departments and Doctors pages and the three sign-in pages use a cool white, ocean blue and mint palette. It is defined in one block at the end of `public/css/site.css` (search for "New public look"). The dashboards keep their own palette in `public/css/style.css`.
 
 ## Stage 11f: Pharmacy: many medicines and expiry dates
 

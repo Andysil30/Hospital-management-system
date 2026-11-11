@@ -3,142 +3,71 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Hospital Management System</title>
+  <title>Welcome · Hospital Management System</title>
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
   <link href="/assets/css/style.css" rel="stylesheet">
   <link href="/assets/css/site.css" rel="stylesheet">
 </head>
-<body>
-
-<header class="site-nav">
-  <div class="container-xl">
-    <a class="site-brand" href="/">
-      <svg class="logo-mark" width="40" height="40" viewBox="0 0 32 32" aria-hidden="true"><rect width="32" height="32" rx="9" fill="#0f6b52"/><path d="M13 7h6v6h6v6h-6v6h-6v-6H7v-6h6z" fill="#fff"/></svg>
-      <span><span class="name">Hospital Management System</span><span class="sub" data-i18n="auth.tag">Private clinic suite</span></span>
-    </a>
-    <nav class="site-links" aria-label="Sections">
-      <a href="#services" data-i18n="nav.services">Departments</a>
-      <a href="#doctors" data-i18n="nav.doctors">Our doctors</a>
-      <a href="#how" data-i18n="nav.how">How it works</a>
-    </nav>
-    <div class="site-tools">
-      <div class="lang-switch" data-lang-switch></div>
-      <div class="dropdown">
-        <button class="btn btn-primary dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false" data-i18n="nav.signin">Sign in</button>
-        <ul class="dropdown-menu dropdown-menu-end portal-menu">
-          <li><a class="dropdown-item" href="/login/patient"><span class="dot dot-patient"></span><span><strong data-i18n="menu.patient">Patient portal</strong><small data-i18n="menu.patient.d"></small></span></a></li>
-          <li><a class="dropdown-item" href="/login/doctor"><span class="dot dot-doctor"></span><span><strong data-i18n="menu.doctor">Doctor portal</strong><small data-i18n="menu.doctor.d"></small></span></a></li>
-          <li><a class="dropdown-item" href="/login/owner"><span class="dot dot-owner"></span><span><strong data-i18n="menu.owner">Owner portal</strong><small data-i18n="menu.owner.d"></small></span></a></li>
-        </ul>
-      </div>
-    </div>
-  </div>
-</header>
-
+<body class="public">
+<!--SITE_HEADER-->
 <main>
-  <!-- ===== Hero ===== -->
-  <section class="home-hero">
+  <section class="pub-hero">
     <div class="container-xl">
       <div class="row g-5">
-        <div class="col-lg-7">
+        <div class="col-lg-6">
           <span class="eyebrow" data-i18n="hero.eyebrow">Private hospital care</span>
           <h1 data-i18n="hero.title">Healthcare that feels personal, run with precision.</h1>
           <p class="lead" data-i18n="hero.sub"></p>
           <div class="d-flex flex-wrap gap-3">
-            <a class="btn btn-accent btn-lg" href="/login/patient" data-i18n="hero.cta1">Book as a patient</a>
-            <a class="btn btn-outline-primary btn-lg" href="#portals" data-i18n="hero.cta2">Staff sign in</a>
+            <a class="btn btn-gradient btn-lg" href="/login/patient" data-i18n="hero.cta1">Book as a patient</a>
+            <a class="btn btn-outline-primary btn-lg" href="/doctors" data-i18n="nav.doctors">Our doctors</a>
+          </div>
+          <p class="staff-links"><span data-i18n="hero.staff">Staff sign in:</span>
+            <a href="/login/doctor" data-i18n="menu.doctor"></a> <a href="/login/owner" data-i18n="menu.owner"></a></p>
+        </div>
+        <div class="col-lg-6">
+          <div class="hero-art" id="hero-art">
+            <svg id="hero-doctor" class="doctor-art" viewBox="0 0 480 560" role="img" aria-label="A smiling doctor in a white coat wearing a stethoscope">
+              <defs><linearGradient id="coat" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#ffffff"/><stop offset="1" stop-color="#e6eff9"/></linearGradient></defs>
+              <path d="M50 560 C50 452 118 402 240 402 C362 402 430 452 430 560 Z" fill="url(#coat)"/>
+              <path d="M194 404 L240 496 L286 404 Z" fill="#1fb5a1"/>
+              <path d="M194 404 L234 502 L170 560 L108 560 L146 436 Z" fill="#f4f8fc" stroke="#cfdcea" stroke-width="3" stroke-linejoin="round"/>
+              <path d="M286 404 L246 502 L310 560 L372 560 L334 436 Z" fill="#f4f8fc" stroke="#cfdcea" stroke-width="3" stroke-linejoin="round"/>
+              <path d="M211 350 H269 V408 C269 424 211 424 211 408 Z" fill="#e6b08a"/>
+              <circle cx="240" cy="176" r="32" fill="#2c2438"/>
+              <ellipse cx="240" cy="262" rx="76" ry="84" fill="#2c2438"/>
+              <ellipse cx="174" cy="298" rx="9" ry="14" fill="#f0c19c"/><ellipse cx="306" cy="298" rx="9" ry="14" fill="#f0c19c"/>
+              <ellipse cx="240" cy="292" rx="66" ry="78" fill="#f6cfad"/>
+              <path d="M172 282 C166 214 206 188 244 188 C284 188 320 214 308 282 C296 244 276 232 242 232 C210 232 184 246 172 282 Z" fill="#2c2438"/>
+              <path d="M202 281 Q216 272 230 279" stroke="#2c2438" stroke-width="4.5" fill="none" stroke-linecap="round"/>
+              <path d="M250 279 Q264 272 278 281" stroke="#2c2438" stroke-width="4.5" fill="none" stroke-linecap="round"/>
+              <ellipse cx="216" cy="300" rx="6.5" ry="8" fill="#2c2438"/><ellipse cx="264" cy="300" rx="6.5" ry="8" fill="#2c2438"/>
+              <circle cx="218.5" cy="297" r="2.2" fill="#fff"/><circle cx="266.5" cy="297" r="2.2" fill="#fff"/>
+              <path d="M240 306 Q235 324 243 326" stroke="#d29a76" stroke-width="3" fill="none" stroke-linecap="round"/>
+              <circle cx="199" cy="328" r="11" fill="#f08f86" opacity=".38"/><circle cx="281" cy="328" r="11" fill="#f08f86" opacity=".38"/>
+              <path d="M214 338 Q240 366 266 338 Q240 348 214 338 Z" fill="#fff" stroke="#b4544a" stroke-width="4" stroke-linejoin="round"/>
+              <path d="M190 410 C150 468 176 542 232 538" fill="none" stroke="#33506e" stroke-width="7" stroke-linecap="round"/>
+              <path d="M290 410 C330 468 304 542 248 538" fill="none" stroke="#33506e" stroke-width="7" stroke-linecap="round"/>
+              <circle cx="240" cy="542" r="17" fill="#b8cadc" stroke="#33506e" stroke-width="6"/>
+              <rect x="316" y="462" width="78" height="42" rx="8" fill="#fff" stroke="#cbdbea" stroke-width="3"/>
+              <rect x="326" y="474" width="26" height="6" rx="3" fill="#1d74d6"/><rect x="326" y="486" width="48" height="5" rx="2.5" fill="#c9d7e6"/>
+              <rect x="112" y="474" width="6" height="34" rx="3" fill="#1d74d6"/>
+            </svg>
+            <img id="hero-photo" class="hero-photo" alt="" hidden>
+            <div class="float-card fc1"><strong data-i18n="hero.card1.t">Book in minutes</strong><span data-i18n="hero.card1.d"></span></div>
+            <div class="float-card fc2"><strong data-i18n="hero.card2.t">Emergency, 24 hours</strong><span data-i18n="hero.card2.d"></span></div>
           </div>
         </div>
-        <div class="col-lg-5">
-          <div class="glance">
-            <div class="stat"><span class="num" id="st-doctors">-</span><span class="lbl" data-i18n="stats.doctors">Doctors</span></div>
-            <div class="stat"><span class="num" id="st-depts">-</span><span class="lbl" data-i18n="stats.depts">Departments</span></div>
-            <div class="stat"><span class="num" id="st-rating">-</span><span class="lbl" data-i18n="stats.rating">Average patient rating</span></div>
-            <div class="glance-badge"><strong>999 / 112</strong><span data-i18n="foot.emergency"></span></div>
-          </div>
-        </div>
-      </div>
-    </div>
-  </section>
-
-  <!-- ===== Choose a portal ===== -->
-  <section class="section alt" id="portals">
-    <div class="container-xl">
-      <div class="section-head"><h2 data-i18n="portals.title">Choose how you want to sign in</h2><p data-i18n="portals.sub"></p></div>
-      <div class="row g-4">
-        <div class="col-md-4">
-          <a class="portal-card p-patient" href="/login/patient">
-            <span class="portal-ico"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20.8 4.6a5.5 5.5 0 0 0-7.8 0L12 5.7l-1-1.1a5.5 5.5 0 0 0-7.8 7.8l1 1.1L12 21l7.8-7.5 1-1.1a5.5 5.5 0 0 0 0-7.8z"/></svg></span>
-            <h3 data-i18n="card.patient.t">I'm a patient</h3>
-            <p data-i18n="card.patient.d"></p>
-            <span class="go" data-i18n="card.patient.b">Patient sign in</span>
-            <span class="new" data-i18n="card.patient.n"></span>
-          </a>
-        </div>
-        <div class="col-md-4">
-          <a class="portal-card p-doctor" href="/login/doctor">
-            <span class="portal-ico"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 3v6a4 4 0 0 0 8 0V3"/><path d="M10 13v3a5 5 0 0 0 10 0v-2"/><circle cx="20" cy="12" r="2"/></svg></span>
-            <h3 data-i18n="card.doctor.t">I'm a doctor</h3>
-            <p data-i18n="card.doctor.d"></p>
-            <span class="go" data-i18n="card.doctor.b">Doctor sign in</span>
-          </a>
-        </div>
-        <div class="col-md-4">
-          <a class="portal-card p-owner" href="/login/owner">
-            <span class="portal-ico"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 20V10"/><path d="M10 20V4"/><path d="M16 20v-7"/><path d="M22 20H2"/></svg></span>
-            <h3 data-i18n="card.owner.t">I'm the owner</h3>
-            <p data-i18n="card.owner.d"></p>
-            <span class="go" data-i18n="card.owner.b">Owner sign in</span>
-          </a>
-        </div>
-      </div>
-    </div>
-  </section>
-
-  <!-- ===== Departments (live) ===== -->
-  <section class="section" id="services">
-    <div class="container-xl">
-      <div class="section-head"><h2 data-i18n="svc.title">Our departments</h2><p data-i18n="svc.sub"></p></div>
-      <div class="row g-3" id="dept-grid"></div>
-    </div>
-  </section>
-
-  <!-- ===== Top doctors (live) ===== -->
-  <section class="section alt" id="doctors">
-    <div class="container-xl">
-      <div class="section-head"><h2 id="docs-title" data-i18n="docs.title">Meet our top-rated doctors</h2><p id="docs-sub" data-i18n="docs.sub"></p></div>
-      <div class="row g-4" id="team-grid"></div>
-    </div>
-  </section>
-
-  <!-- ===== How it works ===== -->
-  <section class="section" id="how">
-    <div class="container-xl">
-      <div class="section-head"><h2 data-i18n="how.title">How it works</h2></div>
-      <div class="row g-4">
-        <div class="col-md-4"><div class="step"><span class="n">1</span><h3 data-i18n="how.1.t"></h3><p data-i18n="how.1.d"></p></div></div>
-        <div class="col-md-4"><div class="step"><span class="n">2</span><h3 data-i18n="how.2.t"></h3><p data-i18n="how.2.d"></p></div></div>
-        <div class="col-md-4"><div class="step"><span class="n">3</span><h3 data-i18n="how.3.t"></h3><p data-i18n="how.3.d"></p></div></div>
       </div>
     </div>
   </section>
 </main>
-
-<footer class="site-foot">
-  <div class="container-xl">
-    <div class="row g-4 align-items-center">
-      <div class="col-lg-7"><div class="emerg" data-i18n="foot.emergency"></div></div>
-      <div class="col-lg-5 text-lg-end">
-        <div><span data-i18n="foot.staff">Staff</span>: <a href="/login/doctor" data-i18n="menu.doctor"></a> · <a href="/login/owner" data-i18n="menu.owner"></a></div>
-        <small data-i18n="foot.rights">Hospital Management System</small>
-      </div>
-    </div>
-  </div>
-</footer>
+<!--SITE_FOOTER-->
 
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
 <script src="/assets/js/i18n.js"></script>
 <script src="/assets/js/common.js"></script>
+<script src="/assets/js/site.js"></script>
 <script src="/assets/js/bot.js"></script>
 <script src="/assets/js/home.js"></script>
 </body>
