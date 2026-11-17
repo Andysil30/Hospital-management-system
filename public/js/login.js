@@ -55,8 +55,13 @@ $('#register-form').addEventListener('submit', (e) => {
     date_of_birth: $('#r-dob').value || null,
     gender: $('#r-gender').value || null,
     phone: $('#r-phone').value.trim(),
+    insurance_provider: $('#r-cover').value,
+    insurance_number: $('#r-cover-no').value.trim(),
     password: $('#r-pass').value,
   };
+  if (data.insurance_provider && !data.insurance_number) {
+    return showError(tr('Enter your member or SHA number.'));
+  }
   if (data.full_name.length < 2 || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(data.email) || data.password.length < 8) {
     return showError(t('err.fillrequired'));
   }
@@ -70,6 +75,7 @@ function reviewValues() {
   $('#rv-dob').textContent = pending.date_of_birth ? fmtDate(pending.date_of_birth) : t('f.notprovided');
   $('#rv-gender').textContent = pending.gender ? t(pending.gender === 'Female' ? 'f.female' : 'f.male') : t('f.notprovided');
   $('#rv-phone').textContent = pending.phone || t('f.notprovided');
+  $('#rv-cover').textContent = pending.insurance_provider ? `${pending.insurance_provider} · ${pending.insurance_number}` : t('f.cover.none.short');
 }
 
 function showReview() {
@@ -99,6 +105,9 @@ $('#tab-register').addEventListener('shown.bs.tab', () => {
   clearError();
   setView($('#review-pane').classList.contains('d-none') ? 'register' : 'review');
 });
+
+// Show the member-number box only when a cover type is chosen
+$('#r-cover').addEventListener('change', (e) => $('#r-cover-no-wrap').classList.toggle('d-none', !e.target.value));
 
 // A link like /login/patient#register opens the registration tab directly
 if (portal === 'patient' && location.hash === '#register') bootstrap.Tab.getOrCreateInstance($('#tab-register')).show();

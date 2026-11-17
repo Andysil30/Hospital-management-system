@@ -93,8 +93,13 @@ async function main() {
     const email = i === 0 ? 'patient@hospital.test' : `patient${i + 1}@hospital.test`;
     const u = await pool.query(`INSERT INTO users (full_name,email,password_hash,role,phone) VALUES ($1,$2,$3,'patient',$4) RETURNING id`, [name, email, patHash, '+2547111000' + String(i).padStart(2, '0')]);
     const dob = `${1955 + rnd(55)}-${String(1 + rnd(12)).padStart(2, '0')}-${String(1 + rnd(28)).padStart(2, '0')}`;
-    const p = await pool.query(`INSERT INTO patients (user_id,date_of_birth,gender,blood_group,allergies) VALUES ($1,$2,$3,$4,$5) RETURNING id`,
-      [u.rows[0].id, dob, pick(['Female', 'Male']), pick(['O+', 'A+', 'B+', 'AB+', 'O-']), pick([null, null, 'Penicillin', 'Peanuts'])]);
+    const provider = pick([null, 'SHA (Social Health Authority)', 'SHA (Social Health Authority)', 'Private insurance']);
+    const memberNo = provider ? String(10000000 + rnd(89999999)) : null;
+    const p = await pool.query(
+      `INSERT INTO patients (user_id,date_of_birth,gender,blood_group,allergies,insurance_provider,insurance_number,insurance_status,insurance_checked_at)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING id`,
+      [u.rows[0].id, dob, pick(['Female', 'Male']), pick(['O+', 'A+', 'B+', 'AB+', 'O-']), pick([null, null, 'Penicillin', 'Peanuts']),
+       provider, memberNo, provider ? 'verified' : 'none', provider ? new Date() : null]);
     patientIds.push(p.rows[0].id);
   }
 
@@ -163,10 +168,38 @@ async function main() {
     }
   }
 
+  console.log('Creating the nurse and laboratory logins and a sample security log...');
+  const nurse = (await pool.query(`INSERT INTO users (full_name,email,password_hash,role,phone) VALUES ('Nurse Faith Mwende','nurse@hospital.test',$1,'nurse','+254700000101') RETURNING id, full_name`, [hash('Nurse@123')])).rows[0];
+  const lab = (await pool.query(`INSERT INTO users (full_name,email,password_hash,role,phone) VALUES ('Lab Tech Kevin Barasa','lab@hospital.test',$1,'lab','+254700000102') RETURNING id, full_name`, [hash('Lab@12345')])).rows[0];
+  const docRows = (await pool.query(`SELECT d.id AS did, u.id, u.full_name FROM doctors d JOIN users u ON u.id = d.user_id JOIN departments dep ON dep.id = d.department_id WHERE dep.bookable ORDER BY d.id LIMIT 12`)).rows;
+  const patRows = (await pool.query(`SELECT p.id, u.full_name FROM patients p JOIN users u ON u.id = p.user_id`)).rows;
+  const templates = [
+    ['doctor', 'view_history', 'patient_history', "Opened the patient's medical history"],
+    ['doctor', 'create_record', 'medical_record', 'Diagnosis saved, 2 medicine(s) prescribed'],
+    ['doctor', 'view_clinical', 'appointment', 'Viewed triage vitals and lab results'],
+    ['doctor', 'request_lab', 'lab_request', 'Full Haemogram (FBC), Malaria Blood Slide (BS)'],
+    ['doctor', 'download_prescription', 'medical_record', 'PDF prescription downloaded'],
+    ['nurse', 'record_vitals', 'vitals', 'BP 128/82, temp 36.9, pulse 76'],
+    ['lab', 'enter_lab_result', 'lab_request', 'Full Haemogram (FBC): normal'],
+    ['patient', 'view_own_history', 'patient_history', 'Patient opened their own history'],
+    ['patient', 'download_prescription', 'medical_record', 'Patient downloaded the PDF prescription'],
+  ];
+  for (let i = 0; i < 40; i++) {
+    const [role, action, entity, details] = pick(templates);
+    const who = role === 'doctor' ? pick(docRows) : role === 'nurse' ? nurse : role === 'lab' ? lab : null;
+    const pat = pick(patRows);
+    const mins = rnd(7 * 24 * 60);
+    await pool.query(
+      `INSERT INTO audit_log (user_id,user_name,role,action,entity,patient_id,patient_name,details,ip,created_at) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9, now() - ($10 || ' minutes')::interval)`,
+      [who ? who.id : null, who ? who.full_name : pat.full_name, role, action, entity, pat.id, pat.full_name, details, '197.232.' + rnd(255) + '.' + rnd(255), String(mins)]);
+  }
+
   console.log('\nDemo data created. Log in with:');
   console.log('  Owner   : admin@hospital.test / Admin@123');
   console.log(`  Doctor  : ${docs[0].email} / ${DEMO_DOCTOR_PASSWORD}   (every demo doctor uses this password)`);
   console.log('  Patient : patient@hospital.test / Patient@123');
+  console.log('  Nurse   : nurse@hospital.test / Nurse@123');
+  console.log('  Lab     : lab@hospital.test / Lab@12345');
 }
 
 main()

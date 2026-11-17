@@ -13,19 +13,25 @@ async function loadSchedule() {
   d.appointments.forEach((a) => apptCache.set(a.id, a));
   $('#sched-summary').textContent = `${d.summary.total} booked · ${d.summary.waiting} waiting · ${d.summary.completed} completed`;
   $('#sched-table').innerHTML = d.appointments.map((a) => {
-    const live = a.status === 'booked' || a.status === 'checked_in';
+    const live = ['booked', 'checked_in', 'awaiting_lab'].includes(a.status);
     const buttons = live
       ? `${a.status === 'booked' ? `<button class="btn btn-sm btn-outline-primary" data-action="checkin" data-id="${a.id}">Patient arrived</button> ` : ''}
          <button class="btn btn-sm btn-primary" data-action="consult" data-id="${a.id}">Start consultation</button>
          <button class="btn btn-sm btn-outline-secondary" data-action="noshow" data-id="${a.id}">No-show</button>
          <button class="btn btn-sm btn-outline-danger" data-action="cancel-appt" data-id="${a.id}">Cancel</button>`
-      : a.has_record ? `<button class="btn btn-sm btn-outline-primary" data-action="view-history" data-id="${a.id}">View record</button>` : '';
+      : a.has_record ? `<a class="btn btn-sm btn-outline-primary" href="/api/doctor/records/${a.record_id}/prescription.pdf" target="_blank" rel="noopener">Prescription PDF</a>` : '';
     return `<tr>
       <td>${a.queue_no ? '#' + a.queue_no : '-'}</td><td><strong>${esc(a.time)}</strong></td>
       <td>${esc(a.patient)}<div class="text-muted small">${a.age != null ? a.age + ' yrs' : ''} ${esc(a.gender || '')}</div></td>
-      <td>${esc(a.reason || '')}</td><td>${chip(a.status)}</td><td class="text-end">${buttons}</td></tr>`;
+      <td>${esc(a.reason || '')}</td><td>${chip(a.status)}${triageBadges(a)}</td><td class="text-end">${buttons}</td></tr>`;
   }).join('') || `<tr><td colspan="6">${empty('No appointments on this date.')}</td></tr>`;
 }
+// Small badges next to the status: vitals recorded, lab progress
+const triageBadges = (a) => ' ' + [
+  a.has_vitals ? '<span class="chip ok" title="Vitals recorded by the nurse">Vitals</span>' : '',
+  a.lab_pending ? `<span class="chip awaiting_lab">Lab ${a.lab_done}/${a.lab_done + a.lab_pending}</span>` : (a.lab_done ? '<span class="chip ok">Lab ready</span>' : ''),
+].join(' ');
+
 const refresh = () => loadSchedule().catch((e) => toast(e.message, 'error'));
 
 dateInput.addEventListener('change', refresh);
@@ -58,22 +64,70 @@ function renderHistory(data) {
     </div>`).join('') || empty('No previous visits recorded.');
 }
 
+let labTests = null;       // the catalogue of tests, loaded once
+let currentClinical = null; // triage + lab info for the open consultation
+
+const flagChip = (f) => (f === 'abnormal' ? '<span class="chip bad">Abnormal</span>' : '<span class="chip ok">Normal</span>');
+
+function renderClinical(c) {
+  currentClinical = c;
+  const v = c.vitals;
+  const hi = (bad, txt) => `<span class="chip ${bad ? 'bad' : 'ok'}">${txt}</span>`;
+  $('#c-triage').innerHTML = (v
+    ? `<div class="d-flex flex-wrap gap-1 mb-1">
+        ${v.bp_systolic ? hi(v.bp_systolic >= 140 || v.bp_diastolic >= 90 || v.bp_systolic < 90, `BP ${v.bp_systolic}/${v.bp_diastolic}`) : ''}
+        ${v.temperature_c ? hi(v.temperature_c >= 38 || v.temperature_c < 35.5, `${v.temperature_c} &deg;C`) : ''}
+        ${v.pulse ? hi(v.pulse > 110 || v.pulse < 50, `Pulse ${v.pulse}`) : ''}
+        ${v.spo2 ? hi(v.spo2 < 95, `SpO2 ${v.spo2}%`) : ''}
+        ${v.weight_kg ? `<span class="chip">${v.weight_kg} kg</span>` : ''}</div>
+       <div class="small text-muted">Recorded by ${esc(v.by || 'nurse')} at ${esc(v.at)}${v.notes ? '. Note: ' + esc(v.notes) : ''}</div>`
+    : '<div class="small text-muted">No vitals recorded yet. The nurse records them at triage.</div>')
+    + `<div class="small mt-2">Cover: ${c.cover && c.cover.insurance_provider ? esc(c.cover.insurance_provider) + ' ' + esc(c.cover.insurance_number || '') + (c.cover.insurance_status === 'verified' ? ' <span class="chip ok">verified</span>' : ' <span class="chip bad">not verified</span>') + ' <span class="text-muted">(demo check)</span>' : '<span class="text-muted">Not provided</span>'}</div>`;
+
+  const pending = c.labs.filter((l) => l.status === 'requested').length;
+  $('#c-labs').innerHTML = c.labs.map((l) => `
+    <div class="py-1 border-top small"><strong>${esc(l.test)}</strong> ${l.status === 'requested' ? '<span class="chip awaiting_lab">Awaiting result</span>' : flagChip(l.result_flag)}
+    ${l.result_text ? `<div>${esc(l.result_text)}</div>` : ''}</div>`).join('') || '<div class="small text-muted">No tests requested for this visit.</div>';
+  $('#c-lab-form').classList.add('d-none');
+  // The server refuses to complete a visit while results are pending; make that obvious here too
+  const save = $('#consult-form button[type=submit]');
+  save.disabled = pending > 0;
+  save.title = pending > 0 ? 'Wait for the laboratory results first' : '';
+}
+
 actions.consult = (btn) => run(btn, async () => {
   const appt = apptCache.get(Number(btn.dataset.id));
-  const [history, meds] = await Promise.all([api(`/doctor/patients/${appt.patient_id}/history`), api('/doctor/medicines')]);
+  const [history, meds, clinical] = await Promise.all([
+    api(`/doctor/patients/${appt.patient_id}/history`), api('/doctor/medicines'), api(`/doctor/appointments/${appt.id}/clinical`)]);
+  if (!labTests) labTests = await api('/doctor/lab-tests');
   medicines = meds;
   $('#consultTitle').textContent = `Consultation · ${appt.patient} · ${appt.time}`;
   $('#c-appt').value = appt.id;
   $('#c-diag').value = ''; $('#c-notes').value = ''; $('#rx-rows').innerHTML = '';
   renderHistory(history);
+  renderClinical(clinical);
   consultModal.show();
 });
 
-actions['view-history'] = (btn) => run(btn, async () => {
-  const appt = apptCache.get(Number(btn.dataset.id));
-  const h = await api(`/doctor/patients/${appt.patient_id}/history`);
-  const last = h.records.find(() => true);
-  toast(last ? `${fmtDate(last.date)}: ${last.diagnosis}` : 'No record found.');
+// Choose tests (grouped by type) and send them to the laboratory
+actions['lab-toggle'] = () => {
+  const form = $('#c-lab-form');
+  if (form.classList.contains('d-none')) {
+    const groups = {};
+    labTests.forEach((t) => { (groups[t.category || 'Other'] = groups[t.category || 'Other'] || []).push(t); });
+    $('#c-lab-list').innerHTML = Object.keys(groups).map((g) => `<div class="fw-semibold small mt-2">${esc(g)}</div>` + groups[g].map((t) => `
+      <div class="form-check"><input class="form-check-input lab-pick" type="checkbox" id="lt-${t.id}" value="${t.id}"><label class="form-check-label small" for="lt-${t.id}">${esc(t.name)} <span class="text-muted">${money(t.price)}</span></label></div>`).join('')).join('');
+  }
+  form.classList.toggle('d-none');
+};
+
+actions['lab-send'] = (btn) => run(btn, async () => {
+  const ids = $$('.lab-pick:checked').map((c) => Number(c.value));
+  if (!ids.length) return toast('Tick at least one test.', 'error');
+  await api('/doctor/lab-requests', { method: 'POST', body: { appointment_id: $('#c-appt').value, test_ids: ids, notes: $('#c-lab-note').value } });
+  consultModal.hide();
+  toast('Sent to the laboratory. The patient now shows as awaiting lab.');
+  await Promise.all([loadSchedule(), loadDashboard()]);
 });
 
 // Medicines grouped by type (Antibiotics, Cardiovascular...) so a long list stays easy to scan
@@ -195,6 +249,13 @@ let dashDate = todayISO();
 async function loadDashboard() {
   const o = await api('/doctor/overview');
 
+  // Lab results are back: tell the doctor
+  o.labReady.forEach((r) => apptCache.set(r.id, { id: r.id, patient_id: r.patient_id, patient: r.patient, time: r.time }));
+  $('#lab-alert').innerHTML = o.labReady.length
+    ? `<div class="alert alert-warning d-flex flex-wrap align-items-center justify-content-between gap-2"><div><strong>Lab results are ready</strong> for ${o.labReady.map((r) => `${esc(r.patient)} (${r.tests} test${r.tests === 1 ? '' : 's'}${r.abnormal ? ', ' + r.abnormal + ' abnormal' : ''})`).join('; ')}</div>
+        <div class="d-flex gap-2">${o.labReady.map((r) => `<button class="btn btn-sm btn-primary" data-action="consult" data-id="${r.id}">Open ${esc(r.patient.split(' ')[0])}</button>`).join('')}</div></div>`
+    : '';
+
   // Summary cards (the first one is highlighted)
   const cards = [
     ['cal', "Today's appointments", o.today.total, `${o.today.waiting} waiting`],
@@ -275,14 +336,14 @@ async function loadDashSchedule() {
   d.appointments.forEach((a) => apptCache.set(a.id, a));
   $('#dash-date-label').textContent = dashDate === todayISO() ? 'Today' : fmtDate(dashDate);
   $('#dash-timeline').innerHTML = d.appointments.map((a) => {
-    const live = a.status === 'booked' || a.status === 'checked_in';
+    const live = ['booked', 'checked_in', 'awaiting_lab'].includes(a.status);
     const cls = a.status === 'completed' ? 'done' : (a.status === 'cancelled' || a.status === 'no_show') ? 'cancelled' : '';
     const actions = live ? `<div class="tl-actions">
       ${a.status === 'booked' ? `<button class="btn btn-sm btn-outline-primary" data-action="checkin" data-id="${a.id}">Arrived</button>` : ''}
       <button class="btn btn-sm btn-primary" data-action="consult" data-id="${a.id}">Start</button></div>` : '';
     return `<div class="tl-item"><div class="tl-time">${esc(a.time)}</div>
       <div class="tl-card ${cls}"><strong>${esc(a.patient)}</strong><div class="small">${esc(a.reason || 'No reason given')}</div>
-      <div class="mt-1">${chip(a.status)}</div>${actions}</div></div>`;
+      <div class="mt-1">${chip(a.status)}${triageBadges(a)}${a.record_id ? ` <a class="small ms-1" href="/api/doctor/records/${a.record_id}/prescription.pdf" target="_blank" rel="noopener">PDF</a>` : ''}</div>${actions}</div></div>`;
   }).join('') || empty('No appointments on this day.');
 }
 

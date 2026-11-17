@@ -5,6 +5,10 @@ const express = require('express');
 const { query, withTransaction } = require('../db');
 const { requireRole, loadDoctor } = require('../middleware/auth');
 const { toMinutes } = require('../slots');
+const { audit } = require('../audit');
+const { loadPrescription, buildPrescriptionPdf, newCode } = require('../prescription');
+
+const LIVE = `('booked','checked_in','awaiting_lab')`;
 
 const router = express.Router();
 router.use(requireRole('doctor'), loadDoctor);
@@ -17,7 +21,7 @@ router.get('/overview', async (req, res) => {
   const id = req.doctorId;
   const today = (await query(
     `SELECT COUNT(*) FILTER (WHERE status <> 'cancelled') AS total,
-            COUNT(*) FILTER (WHERE status IN ('booked','checked_in')) AS waiting,
+            COUNT(*) FILTER (WHERE status IN ('booked','checked_in','awaiting_lab')) AS waiting,
             COUNT(*) FILTER (WHERE status = 'completed') AS completed
      FROM appointments WHERE doctor_id = $1 AND appointment_date = CURRENT_DATE`, [id])).rows[0];
 
@@ -50,7 +54,17 @@ router.get('/overview', async (req, res) => {
   const recent = (await query(
     `SELECT rating, comment, created_at::date AS date FROM feedback WHERE doctor_id = $1 ORDER BY created_at DESC LIMIT 3`, [id])).rows;
 
-  res.json({ today, next, series, month, rating, recent });
+  // Patients whose lab results are all back and who are waiting for the doctor
+  const labReady = (await query(
+    `SELECT a.id, a.patient_id, to_char(a.start_time,'HH24:MI') AS time, u.full_name AS patient,
+            COUNT(r.id)::int AS tests, COUNT(*) FILTER (WHERE r.result_flag = 'abnormal')::int AS abnormal
+     FROM appointments a JOIN patients p ON p.id = a.patient_id JOIN users u ON u.id = p.user_id
+     JOIN lab_requests r ON r.appointment_id = a.id
+     WHERE a.doctor_id = $1 AND a.status = 'checked_in' AND a.appointment_date = CURRENT_DATE
+     GROUP BY a.id, u.full_name HAVING COUNT(*) FILTER (WHERE r.status = 'requested') = 0
+     ORDER BY a.start_time`, [id])).rows;
+
+  res.json({ today, next, series, month, rating, recent, labReady });
 });
 
 // ---------- Daily schedule & queue -----------------------------------
@@ -60,21 +74,26 @@ router.get('/schedule', async (req, res) => {
     `SELECT a.id, a.patient_id, to_char(a.start_time,'HH24:MI') AS time, a.status, a.reason,
             u.full_name AS patient, p.gender,
             EXTRACT(YEAR FROM age(p.date_of_birth))::int AS age,
-            (m.id IS NOT NULL) AS has_record,
-            CASE WHEN a.status IN ('booked','checked_in') THEN
-              ROW_NUMBER() OVER (PARTITION BY a.status IN ('booked','checked_in') ORDER BY a.start_time)
+            m.id AS record_id, (m.id IS NOT NULL) AS has_record,
+            (v.id IS NOT NULL) AS has_vitals,
+            (SELECT COUNT(*)::int FROM lab_requests lr WHERE lr.appointment_id = a.id AND lr.status = 'requested') AS lab_pending,
+            (SELECT COUNT(*)::int FROM lab_requests lr WHERE lr.appointment_id = a.id AND lr.status = 'completed') AS lab_done,
+            p.insurance_provider, p.insurance_status,
+            CASE WHEN a.status IN ${LIVE} THEN
+              ROW_NUMBER() OVER (PARTITION BY a.status IN ${LIVE} ORDER BY a.start_time)
             END AS queue_no
      FROM appointments a
      JOIN patients p ON p.id = a.patient_id
      JOIN users u ON u.id = p.user_id
      LEFT JOIN medical_records m ON m.appointment_id = a.id
+     LEFT JOIN vitals v ON v.appointment_id = a.id
      WHERE a.doctor_id = $1 AND a.appointment_date = COALESCE($2::date, CURRENT_DATE)
      ORDER BY a.start_time`,
     [req.doctorId, date]
   );
   const summary = {
     total: rows.length,
-    waiting: rows.filter((r) => r.status === 'booked' || r.status === 'checked_in').length,
+    waiting: rows.filter((r) => ['booked', 'checked_in', 'awaiting_lab'].includes(r.status)).length,
     completed: rows.filter((r) => r.status === 'completed').length,
   };
   res.json({ date, summary, appointments: rows });
@@ -86,7 +105,7 @@ router.post('/appointments/:id/status', async (req, res) => {
   if (!['checked_in', 'no_show', 'cancelled'].includes(status)) return res.status(400).json({ error: 'Invalid status.' });
   const { rowCount } = await query(
     `UPDATE appointments SET status = $1
-     WHERE id = $2 AND doctor_id = $3 AND status IN ('booked','checked_in')`,
+     WHERE id = $2 AND doctor_id = $3 AND status IN ('booked','checked_in','awaiting_lab')`,
     [status, parseInt(req.params.id, 10), req.doctorId]
   );
   if (!rowCount) return res.status(400).json({ error: 'This appointment cannot be changed.' });
@@ -100,6 +119,7 @@ router.get('/patients/:patientId/history', async (req, res) => {
   const link = await query('SELECT 1 FROM appointments WHERE doctor_id = $1 AND patient_id = $2 LIMIT 1', [req.doctorId, patientId]);
   if (!link.rows.length) return res.status(403).json({ error: 'This patient is not under your care.' });
 
+  await audit(req, { action: 'view_history', entity: 'patient_history', patientId, details: 'Opened the patient\'s medical history' });
   const profile = (await query(
     `SELECT u.full_name, u.phone, p.gender, p.blood_group, p.allergies,
             EXTRACT(YEAR FROM age(p.date_of_birth))::int AS age
@@ -136,18 +156,21 @@ router.post('/records', async (req, res) => {
   if (!diagnosis) return res.status(400).json({ error: 'Please enter a diagnosis.' });
   if (items.length > 15) return res.status(400).json({ error: 'Too many medicines in one prescription.' });
 
+  let saved;
   try {
-    await withTransaction(async (db) => {
+    saved = await withTransaction(async (db) => {
       const appt = (await db.query(
         `SELECT a.id, a.patient_id, d.consultation_fee FROM appointments a JOIN doctors d ON d.id = a.doctor_id
-         WHERE a.id = $1 AND a.doctor_id = $2 AND a.status IN ('booked','checked_in') FOR UPDATE OF a`,
+         WHERE a.id = $1 AND a.doctor_id = $2 AND a.status IN ${LIVE} FOR UPDATE OF a`,
         [appointmentId, req.doctorId])).rows[0];
       if (!appt) throw Object.assign(new Error('This appointment is not open for a consultation.'), { http: 400 });
+      const pending = (await db.query(`SELECT COUNT(*)::int AS n FROM lab_requests WHERE appointment_id = $1 AND status = 'requested'`, [appt.id])).rows[0].n;
+      if (pending > 0) throw Object.assign(new Error('Some lab results are still pending. Wait for the laboratory before completing the visit.'), { http: 409 });
 
       const rec = (await db.query(
-        `INSERT INTO medical_records (appointment_id, patient_id, doctor_id, diagnosis, notes)
-         VALUES ($1,$2,$3,$4,$5) RETURNING id`,
-        [appt.id, appt.patient_id, req.doctorId, diagnosis, notes || null])).rows[0];
+        `INSERT INTO medical_records (appointment_id, patient_id, doctor_id, diagnosis, notes, verify_code)
+         VALUES ($1,$2,$3,$4,$5,$6) RETURNING id`,
+        [appt.id, appt.patient_id, req.doctorId, diagnosis, notes || null, newCode()])).rows[0];
 
       for (const it of items) {
         const medId = parseInt(it.medicine_id, 10);
@@ -172,16 +195,84 @@ router.post('/records', async (req, res) => {
           [appt.id, appt.patient_id, med.unit_price * qty]);
       }
 
-      await db.query(
-        `INSERT INTO payments (appointment_id, patient_id, amount, type) VALUES ($1,$2,$3,'consultation')`,
-        [appt.id, appt.patient_id, appt.consultation_fee]);
+      // If the patient already paid the consultation fee (for example by M-Pesa), do not charge it twice.
+      const alreadyPaid = (await db.query(`SELECT 1 FROM payments WHERE appointment_id = $1 AND type = 'consultation' LIMIT 1`, [appt.id])).rows.length > 0;
+      if (!alreadyPaid) {
+        await db.query(`INSERT INTO payments (appointment_id, patient_id, amount, type) VALUES ($1,$2,$3,'consultation')`,
+          [appt.id, appt.patient_id, appt.consultation_fee]);
+      }
       await db.query(`UPDATE appointments SET status = 'completed' WHERE id = $1`, [appt.id]);
+      return { recordId: rec.id, patientId: appt.patient_id };
     });
   } catch (err) {
     if (err.http) return res.status(err.http).json({ error: err.message });
     throw err;
   }
-  res.status(201).json({ ok: true });
+  await audit(req, { action: 'create_record', entity: 'medical_record', entityId: saved.recordId, patientId: saved.patientId,
+    details: `Diagnosis saved, ${items.length} medicine(s) prescribed` });
+  res.status(201).json({ ok: true, record_id: saved.recordId });
+});
+
+// ---------- Triage vitals, lab requests and results for one appointment ----------
+router.get('/appointments/:id/clinical', async (req, res) => {
+  const id = parseInt(req.params.id, 10);
+  const a = (await query('SELECT id, patient_id FROM appointments WHERE id = $1 AND doctor_id = $2', [id, req.doctorId])).rows[0];
+  if (!a) return res.status(404).json({ error: 'Appointment not found.' });
+  const vitals = (await query(
+    `SELECT v.bp_systolic, v.bp_diastolic, v.temperature_c, v.weight_kg, v.pulse, v.spo2, v.notes,
+            to_char(v.recorded_at,'HH24:MI') AS at, u.full_name AS by
+     FROM vitals v LEFT JOIN users u ON u.id = v.recorded_by WHERE v.appointment_id = $1`, [id])).rows[0] || null;
+  const labs = (await query(
+    `SELECT r.id, t.name AS test, r.status, r.result_text, r.result_flag, r.clinical_notes
+     FROM lab_requests r JOIN lab_tests t ON t.id = r.test_id WHERE r.appointment_id = $1 ORDER BY t.name`, [id])).rows;
+  const cover = (await query('SELECT insurance_provider, insurance_number, insurance_status FROM patients WHERE id = $1', [a.patient_id])).rows[0];
+  await audit(req, { action: 'view_clinical', entity: 'appointment', entityId: id, patientId: a.patient_id, details: 'Viewed triage vitals and lab results' });
+  res.json({ vitals, labs, cover });
+});
+
+router.get('/lab-tests', async (req, res) => {
+  res.json((await query(`SELECT id, name, category, price FROM lab_tests WHERE is_active ORDER BY category, name`)).rows);
+});
+
+// The doctor asks the laboratory for tests; the patient then shows as "Awaiting lab"
+router.post('/lab-requests', async (req, res) => {
+  const appointmentId = parseInt(req.body.appointment_id, 10);
+  const ids = [...new Set((Array.isArray(req.body.test_ids) ? req.body.test_ids : []).map(Number).filter(Number.isInteger))];
+  const notes = String(req.body.notes || '').trim().slice(0, 500) || null;
+  if (!ids.length) return res.status(400).json({ error: 'Choose at least one test.' });
+  if (ids.length > 12) return res.status(400).json({ error: 'Choose at most 12 tests at a time.' });
+
+  const out = await withTransaction(async (db) => {
+    const a = (await db.query(`SELECT id, patient_id FROM appointments WHERE id = $1 AND doctor_id = $2 AND status IN ${LIVE} FOR UPDATE`, [appointmentId, req.doctorId])).rows[0];
+    if (!a) return null;
+    let added = 0; const names = [];
+    for (const tid of ids) {
+      const t = (await db.query('SELECT name FROM lab_tests WHERE id = $1 AND is_active', [tid])).rows[0];
+      if (!t) continue;
+      const r = await db.query(
+        `INSERT INTO lab_requests (appointment_id, patient_id, doctor_id, test_id, clinical_notes) VALUES ($1,$2,$3,$4,$5) ON CONFLICT (appointment_id, test_id) DO NOTHING`,
+        [a.id, a.patient_id, req.doctorId, tid, notes]);
+      if (r.rowCount) { added++; names.push(t.name); }
+    }
+    if (added) await db.query(`UPDATE appointments SET status = 'awaiting_lab' WHERE id = $1`, [a.id]);
+    return { added, names, patientId: a.patient_id, id: a.id };
+  });
+  if (!out) return res.status(400).json({ error: 'This appointment is not open.' });
+  if (!out.added) return res.status(409).json({ error: 'Those tests were already requested for this visit.' });
+  await audit(req, { action: 'request_lab', entity: 'lab_request', entityId: out.id, patientId: out.patientId, details: out.names.join(', ') });
+  res.status(201).json({ ok: true, added: out.added });
+});
+
+// PDF prescription for a visit written by THIS doctor
+router.get('/records/:id/prescription.pdf', async (req, res) => {
+  const id = parseInt(req.params.id, 10);
+  const rx = await loadPrescription(id);
+  if (!rx || rx.doctor_id !== req.doctorId) return res.status(404).json({ error: 'Record not found.' });
+  await audit(req, { action: 'download_prescription', entity: 'medical_record', entityId: id, patientId: rx.patient_id, details: 'PDF prescription downloaded' });
+  const doc = await buildPrescriptionPdf(rx, `${req.protocol}://${req.get('host')}`);
+  res.setHeader('Content-Type', 'application/pdf');
+  res.setHeader('Content-Disposition', `inline; filename="prescription-${rx.verify_code}.pdf"`);
+  doc.pipe(res);
 });
 
 // ---------- Availability control -------------------------------------

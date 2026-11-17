@@ -292,8 +292,8 @@ const intents = [
     name: 'greeting',
     kw: [' hi ', ' hello ', ' hey ', 'good morning', 'good afternoon', 'good evening', 'habari', 'hujambo', 'mambo', 'salaam', 'shikamoo', 'help', 'msaada'],
     run: async () => L(
-      'Hello! I am the hospital assistant. I can help with booking, doctors, departments, fees and using this system. What would you like to know?',
-      'Habari! Mimi ni msaidizi wa hospitali. Naweza kusaidia kuhusu kuweka miadi, madaktari, idara, ada na kutumia mfumo huu. Ungependa kujua nini?'),
+      'Hello! I am the AfyaCare assistant. I can help with booking, doctors, departments, fees and using this system. What would you like to know?',
+      'Habari! Mimi ni msaidizi wa AfyaCare. Naweza kusaidia kuhusu kuweka miadi, madaktari, idara, ada na kutumia mfumo huu. Ungependa kujua nini?'),
   },
 ];
 
@@ -306,8 +306,8 @@ router.post('/ask', limiter, async (req, res) => {
   const suggestions = suggestionsFor(user, lang);
 
   const hello = L(
-    'Hello! I am the hospital assistant. Ask me about booking, doctors, departments, fees or how to use the system.',
-    'Habari! Mimi ni msaidizi wa hospitali. Niulize kuhusu kuweka miadi, madaktari, idara, ada au jinsi ya kutumia mfumo.');
+    'Hello! I am the AfyaCare assistant. Ask me about booking, doctors, departments, fees or how to use the system.',
+    'Habari! Mimi ni msaidizi wa AfyaCare. Niulize kuhusu kuweka miadi, madaktari, idara, ada au jinsi ya kutumia mfumo.');
   if (!q.trim()) return res.json({ reply: hello[lang], suggestions });
 
   for (const it of intents) {

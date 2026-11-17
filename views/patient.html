@@ -3,14 +3,14 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>My health · Hospital Management System</title>
+  <title>My health · AfyaCare Clinic</title>
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
   <link href="/assets/css/style.css" rel="stylesheet">
 </head>
 <body class="role-patient">
 <div class="app-shell">
   <aside class="sidebar">
-    <a class="brand" href="/patient"><svg class="logo-mark" width="34" height="34" viewBox="0 0 32 32" aria-hidden="true"><rect width="32" height="32" rx="9" fill="#fff"/><path d="M13 7h6v6h6v6h-6v6h-6v-6H7v-6h6z" fill="#c65a3a"/></svg><span><span data-i18n="brand.name">Hospital Management</span><small class="d-block" data-i18n="menu.patient" style="font-family:var(--bs-body-font-family);font-size:.72rem;letter-spacing:.08em;text-transform:uppercase;opacity:.7">Patient portal</small></span></a>
+    <a class="brand" href="/patient"><svg class="logo-mark" width="34" height="34" viewBox="0 0 32 32" aria-hidden="true"><rect width="32" height="32" rx="9" fill="#fff"/><path d="M13 7h6v6h6v6h-6v6h-6v-6H7v-6h6z" fill="#c65a3a"/></svg><span><span data-i18n="brand.name">AfyaCare Clinic</span><small class="d-block" data-i18n="menu.patient" style="font-family:var(--bs-body-font-family);font-size:.72rem;letter-spacing:.08em;text-transform:uppercase;opacity:.7">Patient portal</small></span></a>
     <div class="side-label" data-i18n="nav.menu">Menu</div>
     <ul class="nav flex-column sidebar-nav" role="tablist">
       <li class="nav-item"><button class="nav-link active" id="t-doctors" data-bs-toggle="tab" data-bs-target="#p-doctors" type="button" role="tab"><svg class="nav-ico" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg><span data-i18n="tab.find">Find a doctor</span></button></li>
@@ -45,8 +45,19 @@
 
     <div class="tab-pane fade" id="p-appts" role="tabpanel">
       <div class="panel"><div class="table-wrap"><table class="table align-middle mb-0">
-        <thead><tr><th data-i18n="th.date">Date</th><th data-i18n="th.time">Time</th><th data-i18n="th.doctor">Doctor</th><th data-i18n="th.status">Status</th><th class="text-end"></th></tr></thead>
+        <thead><tr><th data-i18n="th.date">Date</th><th data-i18n="th.time">Time</th><th data-i18n="th.doctor">Doctor</th><th data-i18n="th.status">Status</th><th data-i18n="th.payment">Payment</th><th class="text-end"></th></tr></thead>
         <tbody id="appt-table"></tbody></table></div></div>
+      <div class="row g-4 mt-1">
+        <div class="col-lg-6"><div class="panel h-100">
+          <h2 data-i18n="cover.title">Insurance or SHA cover</h2><div class="panel-sub" data-i18n="cover.sub"></div>
+          <div id="cover-box"></div>
+        </div></div>
+        <div class="col-lg-6"><div class="panel h-100">
+          <h2 data-i18n="msg.title">Messages to my phone (demo)</h2><div class="panel-sub" data-i18n="msg.sub"></div>
+          <div class="form-check form-switch mb-3"><input class="form-check-input" type="checkbox" id="rem-toggle" role="switch"><label class="form-check-label" for="rem-toggle" data-i18n="msg.reminders">Send me SMS / WhatsApp reminders</label></div>
+          <div id="msg-list"></div>
+        </div></div>
+      </div>
     </div>
 
     <div class="tab-pane fade" id="p-history" role="tabpanel">
@@ -57,6 +68,7 @@
             <div class="panel-sub" data-i18n="rx.sub">Active ones are still within their course.</div>
             <div id="rx-list"></div>
           </div>
+          <div class="panel mt-4"><h2 data-i18n="lab.title">Lab results</h2><div class="panel-sub" data-i18n="lab.sub"></div><div id="lab-list"></div></div>
         </div>
         <div class="col-lg-8">
           <div class="panel">
@@ -107,6 +119,60 @@
       <div><label class="form-label" for="f-comment" data-i18n="fb.comments">Comments (optional)</label><textarea class="form-control" id="f-comment" rows="3" maxlength="1000"></textarea></div>
     </div>
     <div class="modal-footer"><button type="button" class="btn btn-light" data-bs-dismiss="modal" data-i18n="btn.cancel">Cancel</button><button type="submit" class="btn btn-primary" data-i18n="fb.send">Send feedback</button></div>
+  </form></div>
+</div>
+
+<!-- Appointment booked: queue number + mock WhatsApp / SMS -->
+<div class="modal fade" id="bookedModal" tabindex="-1" aria-labelledby="bookedTitle" aria-hidden="true">
+  <div class="modal-dialog"><div class="modal-content">
+    <div class="modal-header"><h2 class="modal-title h5" id="bookedTitle" data-i18n="booked.title">Appointment booked</h2><button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button></div>
+    <div class="modal-body">
+      <div class="queue-badge" id="booked-queue"></div>
+      <div class="small text-muted mb-2" id="booked-msg-title"></div>
+      <div id="booked-msgs"></div>
+    </div>
+    <div class="modal-footer"><button type="button" class="btn btn-light" data-bs-dismiss="modal" data-action="pay-later" data-i18n="pay.atclinic">Pay at the clinic</button><button type="button" class="btn btn-primary d-none" id="booked-pay" data-action="pay-from-booked" data-i18n="pay.btn">Pay now</button></div>
+  </div></div>
+</div>
+
+<!-- M-Pesa payment (simulation) -->
+<div class="modal fade" id="payModal" tabindex="-1" aria-labelledby="payTitle" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered"><div class="modal-content">
+    <div class="modal-header"><h2 class="modal-title h5" id="payTitle" data-i18n="pay.title">Pay with M-Pesa (demo)</h2><button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button></div>
+    <div class="modal-body">
+      <div id="pay-step-form">
+        <div class="mpesa-amount"><span class="small text-muted" data-i18n="pay.amount">Amount</span><strong id="pay-amount"></strong><span class="small text-muted" id="pay-for"></span></div>
+        <form id="pay-form" novalidate>
+          <label class="form-label" for="pay-phone" data-i18n="pay.phone">M-Pesa phone number</label>
+          <input class="form-control form-control-lg" id="pay-phone" type="tel" inputmode="tel" placeholder="0712 345 678" autocomplete="tel">
+          <div class="text-danger small mt-2 d-none" id="pay-error"></div>
+          <button class="btn btn-mpesa btn-lg w-100 mt-3" type="submit" data-i18n="pay.send">Send payment request</button>
+        </form>
+      </div>
+      <div id="pay-step-wait" class="text-center py-4 d-none">
+        <div class="spinner-border mb-3" role="status" aria-hidden="true"></div>
+        <h3 class="h5" data-i18n="pay.wait.t">Check your phone</h3><p class="mb-0" id="pay-wait-text"></p>
+      </div>
+      <div id="pay-step-done" class="d-none">
+        <div class="text-center"><div class="tick-big" aria-hidden="true">&#10003;</div><h3 class="h5" data-i18n="pay.ok.t">Payment received</h3></div>
+        <dl class="review-list mt-3" id="pay-receipt"></dl>
+        <p class="small text-muted mb-0" data-i18n="pay.demo">This is a demonstration. No money was charged.</p>
+      </div>
+    </div>
+    <div class="modal-footer d-none" id="pay-footer"><button type="button" class="btn btn-primary" data-bs-dismiss="modal" data-i18n="btn.close">Close</button></div>
+  </div></div>
+</div>
+
+<!-- Insurance / SHA cover -->
+<div class="modal fade" id="coverModal" tabindex="-1" aria-labelledby="coverTitle" aria-hidden="true">
+  <div class="modal-dialog"><form class="modal-content" id="cover-form" novalidate>
+    <div class="modal-header"><h2 class="modal-title h5" id="coverTitle" data-i18n="cover.update">Update cover</h2><button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button></div>
+    <div class="modal-body">
+      <div class="mb-3"><label class="form-label" for="cv-provider" data-i18n="f.cover">Insurance or SHA cover (optional)</label><select class="form-select" id="cv-provider"></select></div>
+      <div class="mb-2"><label class="form-label" for="cv-number" data-i18n="f.memberno">Member number</label><input class="form-control" id="cv-number" autocomplete="off"></div>
+      <div class="small text-muted" data-i18n="f.cover.note">The cover check in this demo is simulated.</div>
+    </div>
+    <div class="modal-footer"><button type="button" class="btn btn-light" data-bs-dismiss="modal" data-i18n="btn.cancel">Cancel</button><button type="submit" class="btn btn-primary" data-i18n="cover.save">Save and check</button></div>
   </form></div>
 </div>
 

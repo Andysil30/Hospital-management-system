@@ -116,6 +116,20 @@ Every time you `git push` to GitHub, Vercel automatically redeploys.
 
 ---
 
+## Updating the live site after a new version
+
+1. Extract the new zip over your project folder, then run `npm install` in the VS Code terminal (new libraries are added).
+2. Add the new tables to the ONLINE database (same PowerShell window method as Part 2):
+   ```
+   $env:DATABASE_URL="postgresql://...your Neon string..."
+   npm run db:init
+   ```
+   Your data stays. Then close that terminal window.
+3. `git add .`, `git commit -m "..."`, `git push`. Vercel redeploys by itself.
+4. Sign in to the Owner portal, open **Staff**, and create the nurse and laboratory logins.
+
+PDF prescriptions are built on the server. `vercel.json` already tells Vercel to include the font files the PDF library needs.
+
 ## Troubleshooting
 
 | Problem | What to do |

@@ -3,6 +3,7 @@ const express = require('express');
 const bcrypt = require('bcryptjs');
 const { query, withTransaction } = require('../db');
 const { requireRole } = require('../middleware/auth');
+const { audit } = require('../audit');
 
 const router = express.Router();
 router.use(requireRole('admin'));
@@ -37,7 +38,8 @@ router.get('/revenue', async (req, res) => {
   const { rows } = await query(
     `SELECT to_char(b.bucket, '${p.fmt}') AS label,
             COALESCE(SUM(pay.amount) FILTER (WHERE pay.type = 'consultation'), 0) AS consultation,
-            COALESCE(SUM(pay.amount) FILTER (WHERE pay.type = 'pharmacy'), 0)     AS pharmacy
+            COALESCE(SUM(pay.amount) FILTER (WHERE pay.type = 'pharmacy'), 0)     AS pharmacy,
+            COALESCE(SUM(pay.amount) FILTER (WHERE pay.type = 'lab'), 0)          AS lab
      FROM generate_series(date_trunc('${p.unit}', now()) - interval '${p.back} ${p.unit}',
                           date_trunc('${p.unit}', now()), interval '1 ${p.unit}') AS b(bucket)
      LEFT JOIN payments pay ON date_trunc('${p.unit}', pay.paid_at) = b.bucket
@@ -47,6 +49,7 @@ router.get('/revenue', async (req, res) => {
     labels: rows.map((r) => r.label),
     consultation: rows.map((r) => r.consultation),
     pharmacy: rows.map((r) => r.pharmacy),
+    lab: rows.map((r) => r.lab),
   });
 });
 
@@ -192,6 +195,84 @@ router.post('/medicines/import', async (req, res) => {
     }
   });
   res.json(result);
+});
+
+// ---------- Analytics: busiest hours, top performers ----------
+router.get('/peak-hours', async (req, res) => {
+  const days = Math.min(Math.max(parseInt(req.query.days, 10) || 90, 7), 365);
+  const hours = (await query(
+    `SELECT EXTRACT(HOUR FROM start_time)::int AS h, COUNT(*)::int AS n FROM appointments
+     WHERE status <> 'cancelled' AND appointment_date > CURRENT_DATE - $1::int GROUP BY 1`, [days])).rows;
+  const weekdays = (await query(
+    `SELECT EXTRACT(DOW FROM appointment_date)::int AS d, COUNT(*)::int AS n FROM appointments
+     WHERE status <> 'cancelled' AND appointment_date > CURRENT_DATE - $1::int GROUP BY 1`, [days])).rows;
+  const byHour = Array.from({ length: 24 }, (_, h) => (hours.find((r) => r.h === h) || { n: 0 }).n);
+  const byDay = Array.from({ length: 7 }, (_, d) => (weekdays.find((r) => r.d === d) || { n: 0 }).n);
+  res.json({ days, hours: byHour, weekdays: byDay });
+});
+
+router.get('/top-performers', async (req, res) => {
+  const { rows } = await query(
+    `SELECT u.full_name, dep.name AS department,
+            COUNT(a.id) FILTER (WHERE a.status = 'completed')::int AS visits,
+            COALESCE((SELECT SUM(p.amount) FROM payments p JOIN appointments ax ON ax.id = p.appointment_id
+                      WHERE ax.doctor_id = d.id AND p.paid_at > now() - interval '30 days'), 0) AS revenue,
+            (SELECT ROUND(AVG(f.rating)::numeric, 1) FROM feedback f WHERE f.doctor_id = d.id AND f.created_at > now() - interval '30 days') AS rating
+     FROM doctors d JOIN users u ON u.id = d.user_id AND u.is_active JOIN departments dep ON dep.id = d.department_id
+     LEFT JOIN appointments a ON a.doctor_id = d.id AND a.appointment_date > CURRENT_DATE - 30
+     GROUP BY d.id, u.full_name, dep.name ORDER BY visits DESC, revenue DESC LIMIT 8`);
+  res.json(rows);
+});
+
+// ---------- Security log (audit trail) ----------
+router.get('/audit', async (req, res) => {
+  const limit = Math.min(Math.max(parseInt(req.query.limit, 10) || 25, 1), 100);
+  const offset = Math.max(parseInt(req.query.offset, 10) || 0, 0);
+  const where = []; const params = [];
+  const add = (sql, v) => { params.push(v); where.push(sql.replace('?', '$' + params.length)); };
+  if (req.query.action) add('action = ?', String(req.query.action));
+  if (req.query.role) add('role = ?', String(req.query.role));
+  if (req.query.q) add('(user_name ILIKE ? OR patient_name ILIKE ? OR details ILIKE ?)'.replace(/\?/g, '$' + (params.length + 1)), '%' + String(req.query.q).slice(0, 60) + '%');
+  const w = where.length ? 'WHERE ' + where.join(' AND ') : '';
+  const total = (await query(`SELECT COUNT(*)::int AS n FROM audit_log ${w}`, params)).rows[0].n;
+  const rows = (await query(
+    `SELECT id, to_char(created_at, 'YYYY-MM-DD HH24:MI:SS') AS at, user_name, role, action, entity, entity_id, patient_name, details, ip
+     FROM audit_log ${w} ORDER BY created_at DESC, id DESC LIMIT ${limit} OFFSET ${offset}`, params)).rows;
+  const actions = (await query('SELECT DISTINCT action FROM audit_log ORDER BY action')).rows.map((r) => r.action);
+  res.json({ total, limit, offset, rows, actions });
+});
+
+// ---------- Logins for nurses (triage) and laboratory technicians ----------
+router.get('/staff-logins', async (req, res) => {
+  res.json((await query(`SELECT id, full_name, email, role, is_active, last_login FROM users WHERE role IN ('nurse','lab') ORDER BY role, full_name`)).rows);
+});
+
+router.post('/staff-logins', async (req, res) => {
+  const b = req.body;
+  const email = String(b.email || '').trim().toLowerCase();
+  const name = String(b.full_name || '').trim();
+  const role = b.role;
+  if (name.length < 2) return res.status(400).json({ error: 'Enter the full name.' });
+  if (!['nurse', 'lab'].includes(role)) return res.status(400).json({ error: 'Choose nurse or laboratory technician.' });
+  if (!EMAIL_RE.test(email)) return res.status(400).json({ error: 'Enter a valid e-mail address, for example example@gmail.com.' });
+  if (!b.password || String(b.password).length < 8) return res.status(400).json({ error: 'The password must be at least 8 characters.' });
+  if (String(b.password).length > 72) return res.status(400).json({ error: 'The password must be at most 72 characters.' });
+  const hash = await bcrypt.hash(String(b.password), 10);
+  try {
+    await query(`INSERT INTO users (full_name, email, password_hash, role, phone) VALUES ($1,$2,$3,$4,$5)`, [name, email, hash, role, String(b.phone || '').trim() || null]);
+  } catch (err) {
+    if (err.code === '23505') return res.status(409).json({ error: 'That e-mail is already registered.' });
+    throw err;
+  }
+  await audit(req, { action: 'create_staff_login', entity: 'account', details: `Created a ${role} login for ${email}` });
+  res.status(201).json({ ok: true });
+});
+
+router.post('/staff-logins/:id/active', async (req, res) => {
+  const { rowCount } = await query(`UPDATE users SET is_active = $1 WHERE id = $2 AND role IN ('nurse','lab')`, [req.body.is_active === true, parseInt(req.params.id, 10)]);
+  if (!rowCount) return res.status(404).json({ error: 'Account not found.' });
+  await audit(req, { action: req.body.is_active === true ? 'enable_staff_login' : 'disable_staff_login', entity: 'account', entityId: parseInt(req.params.id, 10) });
+  res.json({ ok: true });
 });
 
 // ---------- Departments, doctors and personnel ------------------------

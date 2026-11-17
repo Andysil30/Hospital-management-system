@@ -182,3 +182,109 @@ CREATE TABLE IF NOT EXISTS staff_members (
   created_at    TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 CREATE INDEX IF NOT EXISTS ix_staff_department ON staff_members (department_id);
+
+-- =====================================================================
+-- 9. AfyaCare additions: nurse + lab roles, vitals, lab tests, cover,
+--    mock messages, prescription verification and the audit log
+-- =====================================================================
+-- New roles (nurse = triage / reception, lab = laboratory technician) and new statuses
+ALTER TABLE users DROP CONSTRAINT IF EXISTS users_role_check;
+ALTER TABLE users ADD CONSTRAINT users_role_check CHECK (role IN ('admin','doctor','patient','nurse','lab'));
+ALTER TABLE appointments DROP CONSTRAINT IF EXISTS appointments_status_check;
+ALTER TABLE appointments ADD CONSTRAINT appointments_status_check
+  CHECK (status IN ('booked','checked_in','awaiting_lab','completed','cancelled','no_show'));
+ALTER TABLE payments DROP CONSTRAINT IF EXISTS payments_type_check;
+ALTER TABLE payments ADD CONSTRAINT payments_type_check CHECK (type IN ('consultation','pharmacy','lab'));
+ALTER TABLE payments ADD COLUMN IF NOT EXISTS reference VARCHAR(30);          -- e.g. the (simulated) M-Pesa receipt
+
+-- Insurance / SHA cover and reminder preference on the patient
+ALTER TABLE patients ADD COLUMN IF NOT EXISTS insurance_provider VARCHAR(80);
+ALTER TABLE patients ADD COLUMN IF NOT EXISTS insurance_number VARCHAR(40);
+ALTER TABLE patients ADD COLUMN IF NOT EXISTS insurance_status VARCHAR(12) NOT NULL DEFAULT 'none'
+  CHECK (insurance_status IN ('none','verified','not_found'));
+ALTER TABLE patients ADD COLUMN IF NOT EXISTS insurance_checked_at TIMESTAMPTZ;
+ALTER TABLE patients ADD COLUMN IF NOT EXISTS reminders BOOLEAN NOT NULL DEFAULT TRUE;
+
+-- Each visit record gets a public verification code (printed as a QR code on the PDF prescription)
+ALTER TABLE medical_records ADD COLUMN IF NOT EXISTS verify_code VARCHAR(16) UNIQUE;
+
+-- Triage: vitals recorded by a nurse, shown on the doctor's screen
+CREATE TABLE IF NOT EXISTS vitals (
+  id             SERIAL PRIMARY KEY,
+  appointment_id INT NOT NULL UNIQUE REFERENCES appointments(id),
+  patient_id     INT NOT NULL REFERENCES patients(id),
+  recorded_by    INT REFERENCES users(id),
+  bp_systolic    SMALLINT CHECK (bp_systolic BETWEEN 40 AND 300),
+  bp_diastolic   SMALLINT CHECK (bp_diastolic BETWEEN 20 AND 200),
+  temperature_c  NUMERIC(4,1) CHECK (temperature_c BETWEEN 30 AND 45),
+  weight_kg      NUMERIC(5,1) CHECK (weight_kg BETWEEN 0.5 AND 400),
+  pulse          SMALLINT CHECK (pulse BETWEEN 20 AND 260),
+  spo2           SMALLINT CHECK (spo2 BETWEEN 50 AND 100),
+  notes          TEXT,
+  recorded_at    TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+-- Laboratory: catalogue of tests, and the requests doctors make
+CREATE TABLE IF NOT EXISTS lab_tests (
+  id        SERIAL PRIMARY KEY,
+  name      VARCHAR(120) NOT NULL UNIQUE,
+  category  VARCHAR(40),
+  price     NUMERIC(10,2) NOT NULL DEFAULT 0 CHECK (price >= 0),
+  is_active BOOLEAN NOT NULL DEFAULT TRUE
+);
+CREATE TABLE IF NOT EXISTS lab_requests (
+  id             SERIAL PRIMARY KEY,
+  appointment_id INT NOT NULL REFERENCES appointments(id),
+  patient_id     INT NOT NULL REFERENCES patients(id),
+  doctor_id      INT NOT NULL REFERENCES doctors(id),
+  test_id        INT NOT NULL REFERENCES lab_tests(id),
+  status         VARCHAR(12) NOT NULL DEFAULT 'requested' CHECK (status IN ('requested','completed')),
+  clinical_notes TEXT,
+  result_text    TEXT,
+  result_flag    VARCHAR(10) CHECK (result_flag IN ('normal','abnormal')),
+  requested_at   TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  completed_at   TIMESTAMPTZ,
+  completed_by   INT REFERENCES users(id),
+  UNIQUE (appointment_id, test_id)
+);
+CREATE INDEX IF NOT EXISTS ix_labreq_status ON lab_requests (status, requested_at);
+
+INSERT INTO lab_tests (name, category, price) VALUES
+  ('Full Haemogram (FBC)', 'Haematology', 600), ('Malaria Blood Slide (BS)', 'Haematology', 200),
+  ('Malaria Rapid Test (RDT)', 'Haematology', 300), ('ESR', 'Haematology', 250), ('Blood Group and Rhesus', 'Haematology', 300),
+  ('Random Blood Sugar', 'Chemistry', 150), ('Fasting Blood Sugar', 'Chemistry', 200), ('HbA1c', 'Chemistry', 1200),
+  ('Urea, Electrolytes and Creatinine (UECs)', 'Chemistry', 1500), ('Liver Function Tests (LFTs)', 'Chemistry', 1800),
+  ('Lipid Profile', 'Chemistry', 1600), ('Uric Acid', 'Chemistry', 500), ('Thyroid Function (TSH)', 'Chemistry', 1500),
+  ('CRP', 'Chemistry', 900), ('PSA', 'Chemistry', 1800),
+  ('Urinalysis', 'Microbiology', 250), ('Urine Culture and Sensitivity', 'Microbiology', 1200), ('Stool Microscopy', 'Microbiology', 250),
+  ('Widal Test (Typhoid)', 'Serology', 400), ('H. pylori Test', 'Serology', 600), ('VDRL (Syphilis)', 'Serology', 350),
+  ('Pregnancy Test (Urine)', 'Serology', 150)
+ON CONFLICT (name) DO NOTHING;
+
+-- Mock SMS / WhatsApp messages (a demonstration outbox: nothing is really sent)
+CREATE TABLE IF NOT EXISTS notifications (
+  id             SERIAL PRIMARY KEY,
+  patient_id     INT NOT NULL REFERENCES patients(id),
+  appointment_id INT REFERENCES appointments(id),
+  channel        VARCHAR(10) NOT NULL CHECK (channel IN ('sms','whatsapp')),
+  message        TEXT NOT NULL,
+  created_at     TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS ix_notif_patient ON notifications (patient_id, created_at DESC);
+
+-- Security log: who looked at or changed patient records, and when. Append-only.
+CREATE TABLE IF NOT EXISTS audit_log (
+  id           BIGSERIAL PRIMARY KEY,
+  user_id      INT,
+  user_name    VARCHAR(120),
+  role         VARCHAR(10),
+  action       VARCHAR(40) NOT NULL,
+  entity       VARCHAR(40),
+  entity_id    INT,
+  patient_id   INT,
+  patient_name VARCHAR(120),
+  details      TEXT,
+  ip           VARCHAR(60),
+  created_at   TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS ix_audit_time ON audit_log (created_at DESC);

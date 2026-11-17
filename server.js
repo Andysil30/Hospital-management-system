@@ -62,13 +62,15 @@ app.use('/api/public', require('./src/routes/public'));
 app.use('/api/admin', require('./src/routes/admin'));
 app.use('/api/doctor', require('./src/routes/doctor'));
 app.use('/api/patient', require('./src/routes/patient'));
+app.use('/api/nurse', require('./src/routes/nurse'));
+app.use('/api/lab', require('./src/routes/lab'));
 app.use('/api/bot', require('./src/routes/bot'));
 app.use('/api', (req, res) => res.status(404).json({ error: 'Not found.' }));
 
 // 6. Pages. Public pages share one header and footer (views/partials). Each sign-in page is separate;
 //    each dashboard needs the right role.
 const view = (name) => (req, res) => res.sendFile(path.join(__dirname, 'views', name));
-const PORTALS = ['patient', 'doctor', 'owner'];
+const PORTALS = ['patient', 'doctor', 'owner', 'nurse', 'lab'];
 
 async function renderPublic(res, file, replacements = {}) {
   try {
@@ -93,7 +95,10 @@ app.get('/', (req, res) => {
 app.get('/departments', (req, res) => renderPublic(res, 'departments.html'));
 app.get('/doctors', (req, res) => renderPublic(res, 'doctors.html'));
 
-// /login/patient, /login/doctor, /login/owner use one template, filled in per portal.
+// The page a QR code on a prescription opens (anyone may check a prescription)
+app.get('/verify/:code', (req, res) => renderPublic(res, 'verify.html'));
+
+// /login/<portal> use one template, filled in per portal.
 app.get('/login/:portal', (req, res) => {
   const portal = req.params.portal;
   if (!PORTALS.includes(portal)) return res.redirect('/');
@@ -105,6 +110,8 @@ app.get('/login/:portal', (req, res) => {
 app.get('/admin', requireRolePage('admin'), view('admin.html'));
 app.get('/doctor', requireRolePage('doctor'), view('doctor.html'));
 app.get('/patient', requireRolePage('patient'), view('patient.html'));
+app.get('/nurse', requireRolePage('nurse'), view('nurse.html'));
+app.get('/lab', requireRolePage('lab'), view('lab.html'));
 
 // 7. Central error handler - never leak internals to the browser.
 app.use((err, req, res, next) => {

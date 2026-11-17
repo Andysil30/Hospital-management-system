@@ -30,11 +30,12 @@ async function loadKpis() {
 
 async function loadRevenue() {
   const d = await api('/admin/revenue?period=' + state.period);
-  const total = d.consultation.map((v, i) => v + d.pharmacy[i]);
+  const total = d.consultation.map((v, i) => v + d.pharmacy[i] + (d.lab ? d.lab[i] : 0));
   const isBar = state.chartType === 'bar';
   const datasets = [
     { label: 'Consultations', data: d.consultation, backgroundColor: CHART_COLORS.primary, borderColor: CHART_COLORS.primary, tension: .3 },
     { label: 'Pharmacy', data: d.pharmacy, backgroundColor: CHART_COLORS.accent, borderColor: CHART_COLORS.accent, tension: .3 },
+    { label: 'Laboratory', data: d.lab || [], backgroundColor: CHART_COLORS.gold, borderColor: CHART_COLORS.gold, tension: .3 },
   ];
   if (!isBar) datasets.push({ label: 'Total', data: total, borderColor: CHART_COLORS.gold, backgroundColor: CHART_COLORS.gold, borderWidth: 3, tension: .3 });
 
@@ -75,7 +76,29 @@ async function loadStaffActivity() {
     || `<tr><td colspan="5">${empty('No doctors yet.')}</td></tr>`;
 }
 
-const loadOverview = () => Promise.all([loadKpis(), loadRevenue(), loadDepartments(), loadStaffActivity()]).catch((e) => toast(e.message, 'error'));
+// Busiest booking hours and top performing doctors
+async function loadAnalytics() {
+  const [peak, top] = await Promise.all([api('/admin/peak-hours?days=90'), api('/admin/top-performers')]);
+  const max = Math.max(...peak.hours);
+  const first = peak.hours.findIndex((n) => n > 0), last = peak.hours.length - 1 - [...peak.hours].reverse().findIndex((n) => n > 0);
+  const range = first < 0 ? [] : peak.hours.map((n, h) => ({ n, h })).slice(first, last + 1);
+  drawChart('hoursChart', {
+    type: 'bar',
+    data: { labels: range.map((r) => String(r.h).padStart(2, '0') + ':00'),
+      datasets: [{ label: 'Appointments', data: range.map((r) => r.n), backgroundColor: range.map((r) => (max && r.n >= max * 0.85 ? CHART_COLORS.accent : CHART_COLORS.primary)), borderRadius: 4 }] },
+    options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } },
+      scales: { x: { grid: { display: false } }, y: { beginAtZero: true, ticks: { precision: 0 } } } },
+  });
+  drawChart('performersChart', {
+    type: 'bar',
+    data: { labels: top.map((r) => r.full_name), datasets: [{ label: 'Patients seen', data: top.map((r) => r.visits), backgroundColor: CHART_COLORS.primary, borderRadius: 4 }] },
+    options: { indexAxis: 'y', responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false },
+      tooltip: { callbacks: { afterLabel: (c) => `Revenue ${money(top[c.dataIndex].revenue)}` + (top[c.dataIndex].rating ? ` | Rating ${top[c.dataIndex].rating}` : '') } } },
+      scales: { x: { beginAtZero: true, ticks: { precision: 0 } }, y: { grid: { display: false } } } },
+  });
+}
+
+const loadOverview = () => Promise.all([loadKpis(), loadRevenue(), loadAnalytics(), loadDepartments(), loadStaffActivity()]).catch((e) => toast(e.message, 'error'));
 
 actions.period = (btn) => { state.period = btn.dataset.value; markActive('period-group', state.period); loadRevenue(); };
 actions.charttype = (btn) => { state.chartType = btn.dataset.value; markActive('type-group', state.chartType); loadRevenue(); };
@@ -326,6 +349,7 @@ async function loadStaff() {
   const [docs, depts, cover, people, patterns] = await Promise.all([
     api('/admin/doctors'), api('/admin/departments'), api('/admin/coverage'), api('/admin/personnel'), api('/admin/schedule-patterns'),
   ]);
+  loadStaffLogins().catch(() => {});
   const keepD = $('#d-dept').value, keepP = $('#p-dept').value;
   $('#d-dept').innerHTML = deptOptions(depts);
   $('#p-dept').innerHTML = deptOptions(depts);
@@ -407,9 +431,75 @@ $('#dept-form').addEventListener('submit', (e) => {
   });
 });
 
+// ===================== NURSE / LAB LOGINS =====================
+async function loadStaffLogins() {
+  const rows = await api('/admin/staff-logins');
+  $('#sl-table').innerHTML = rows.map((u) => `
+    <tr><td>${esc(u.full_name)}<div class="text-muted small">${esc(u.email)}</div></td><td>${u.role === 'nurse' ? 'Nurse' : 'Laboratory'}</td>
+    <td>${u.is_active ? '<span class="chip ok">Active</span>' : '<span class="chip bad">Disabled</span>'}</td>
+    <td class="text-end"><button class="btn btn-sm btn-outline-primary" data-action="sl-toggle" data-id="${u.id}" data-active="${u.is_active}">${u.is_active ? 'Disable' : 'Enable'}</button></td></tr>`).join('')
+    || `<tr><td colspan="4">${empty('No nurse or laboratory logins yet.')}</td></tr>`;
+}
+actions['sl-toggle'] = (btn) => run(btn, async () => {
+  await api(`/admin/staff-logins/${btn.dataset.id}/active`, { method: 'POST', body: { is_active: btn.dataset.active !== 'true' } });
+  await loadStaffLogins();
+});
+$('#sl-form').addEventListener('submit', (e) => {
+  e.preventDefault();
+  const email = $('#sl-email').value.trim();
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(email)) return toast('Enter a valid e-mail address, for example example@gmail.com.', 'error');
+  if ($('#sl-pass').value.length < 8) return toast('The password must be at least 8 characters.', 'error');
+  run($('button[type=submit]', e.target), async () => {
+    await api('/admin/staff-logins', { method: 'POST', body: { full_name: $('#sl-name').value, email, password: $('#sl-pass').value, role: $('#sl-role').value } });
+    e.target.reset();
+    toast('Login created. Share the e-mail and password privately.');
+    await loadStaffLogins();
+  });
+});
+
+// ===================== SECURITY LOG =====================
+const AUDIT_LABELS = {
+  view_history: ['Viewed medical history', 'access'], view_clinical: ['Viewed vitals and lab results', 'access'],
+  view_own_history: ['Patient viewed own history', 'access'], view_own_lab_results: ['Patient viewed lab results', 'access'],
+  download_prescription: ['Downloaded a prescription', 'access'], verify_prescription: ['Prescription checked by QR code', 'access'],
+  create_record: ['Saved a medical record', 'change'], record_vitals: ['Recorded vitals', 'change'], update_vitals: ['Edited vitals', 'change'],
+  request_lab: ['Requested lab tests', 'change'], enter_lab_result: ['Entered a lab result', 'change'],
+  login: ['Signed in', 'info'], login_failed: ['Failed sign-in', 'alert'],
+  create_staff_login: ['Created a staff login', 'change'], enable_staff_login: ['Enabled a staff login', 'change'], disable_staff_login: ['Disabled a staff login', 'change'],
+};
+const AUDIT_CHIP = { access: 'booked', change: 'checked_in', info: '', alert: 'bad' };
+const ROLE_NAMES = { doctor: 'Doctor', nurse: 'Nurse', lab: 'Laboratory', patient: 'Patient', admin: 'Owner' };
+let auditOffset = 0, auditTotal = 0;
+const AUDIT_PAGE = 25;
+
+async function loadAudit() {
+  const qs = new URLSearchParams({ limit: AUDIT_PAGE, offset: auditOffset, q: $('#au-q').value.trim(), action: $('#au-action').value, role: $('#au-role').value });
+  const r = await api('/admin/audit?' + qs);
+  auditTotal = r.total;
+  const keep = $('#au-action').value;
+  $('#au-action').innerHTML = '<option value="">All actions</option>' + r.actions.map((a) => `<option value="${esc(a)}">${esc((AUDIT_LABELS[a] || [a])[0])}</option>`).join('');
+  $('#au-action').value = keep;
+  $('#au-table').innerHTML = r.rows.map((x) => {
+    const [label, kind] = AUDIT_LABELS[x.action] || [x.action, 'info'];
+    return `<tr><td class="small text-nowrap">${esc(x.at)}</td>
+      <td>${esc(x.user_name || 'Unknown')}<div class="small text-muted">${esc(ROLE_NAMES[x.role] || x.role || '')}</div></td>
+      <td><span class="chip ${AUDIT_CHIP[kind]}">${esc(label)}</span></td>
+      <td>${esc(x.patient_name || '-')}</td><td class="small">${esc(x.details || '')}</td><td class="small text-muted">${esc(x.ip || '')}</td></tr>`;
+  }).join('') || `<tr><td colspan="6">${empty('No entries match.')}</td></tr>`;
+  const from = r.total ? auditOffset + 1 : 0;
+  $('#au-pager').textContent = `${from}-${Math.min(auditOffset + AUDIT_PAGE, r.total)} of ${r.total}`;
+}
+const reloadAudit = () => { auditOffset = 0; loadAudit().catch((e) => toast(e.message, 'error')); };
+$('#au-q').addEventListener('input', () => { clearTimeout(reloadAudit.t); reloadAudit.t = setTimeout(reloadAudit, 300); });
+$('#au-action').addEventListener('change', reloadAudit);
+$('#au-role').addEventListener('change', reloadAudit);
+actions['au-prev'] = () => { auditOffset = Math.max(0, auditOffset - AUDIT_PAGE); loadAudit().catch((e) => toast(e.message, 'error')); };
+actions['au-next'] = () => { if (auditOffset + AUDIT_PAGE < auditTotal) { auditOffset += AUDIT_PAGE; loadAudit().catch((e) => toast(e.message, 'error')); } };
+
 // ===================== Tab wiring =====================
 onTab('t-overview', loadOverview);
 onTab('t-awards', () => loadAwards().catch((e) => toast(e.message, 'error')));
 onTab('t-pharmacy', () => loadMedicines().catch((e) => toast(e.message, 'error')));
+onTab('t-audit', () => loadAudit().catch((e) => toast(e.message, 'error')));
 onTab('t-staff', () => loadStaff().catch((e) => toast(e.message, 'error')));
 loadOverview();

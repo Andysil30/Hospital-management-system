@@ -3,6 +3,8 @@ const bcrypt = require('bcryptjs');
 const rateLimit = require('express-rate-limit');
 const { query, withTransaction } = require('../db');
 const { HOME } = require('../middleware/auth');
+const { audit } = require('../audit');
+const { checkCover } = require('../cover');
 
 const router = express.Router();
 
@@ -10,6 +12,7 @@ const router = express.Router();
 const loginLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
   limit: 10,
+  skipSuccessfulRequests: true, // only failed attempts count, so correct sign-ins never lock anyone out
   standardHeaders: true,
   legacyHeaders: false,
   message: { error: 'Too many login attempts. Please try again in 15 minutes.' },
@@ -20,11 +23,13 @@ const loginLimiter = rateLimit({
 const DUMMY_HASH = bcrypt.hashSync('not-a-real-password', 10);
 
 // Which role may use which sign-in page. (The owner's role is called "admin" in the database.)
-const PORTAL_ROLE = { patient: 'patient', doctor: 'doctor', owner: 'admin' };
+const PORTAL_ROLE = { patient: 'patient', doctor: 'doctor', owner: 'admin', nurse: 'nurse', lab: 'lab' };
 const ROLE_MESSAGE = {
   patient: 'This is a patient account. Please use the Patient sign-in page.',
   doctor: 'This is a doctor account. Please use the Doctor sign-in page.',
   admin: 'This is an owner account. Please use the Owner sign-in page.',
+  nurse: 'This is a nurse account. Please use the Nurse sign-in page.',
+  lab: 'This is a laboratory account. Please use the Laboratory sign-in page.',
 };
 
 // Replace the session ID on login (prevents "session fixation" attacks).
@@ -40,7 +45,7 @@ function startSession(req, user) {
 
 // ---- Patient self-registration (doctors/admins are created by the admin) ----
 router.post('/register', async (req, res) => {
-  const { full_name, email, password, phone, date_of_birth, gender, confirmed } = req.body || {};
+  const { full_name, email, password, phone, date_of_birth, gender, confirmed, insurance_provider, insurance_number } = req.body || {};
   const cleanEmail = String(email || '').trim().toLowerCase();
 
   if (!full_name || String(full_name).trim().length < 2) return res.status(400).json({ error: 'Please enter your full name.' });
@@ -60,9 +65,11 @@ router.post('/register', async (req, res) => {
          VALUES ($1,$2,$3,'patient',$4) RETURNING id, full_name, role`,
         [String(full_name).trim(), cleanEmail, hash, String(phone || '').trim() || null]
       );
+      const cover = checkCover(insurance_provider, insurance_number);
       await db.query(
-        'INSERT INTO patients (user_id, date_of_birth, gender) VALUES ($1,$2,$3)',
-        [u.rows[0].id, date_of_birth || null, gender || null]
+        `INSERT INTO patients (user_id, date_of_birth, gender, insurance_provider, insurance_number, insurance_status, insurance_checked_at)
+         VALUES ($1,$2,$3,$4,$5,$6,$7)`,
+        [u.rows[0].id, date_of_birth || null, gender || null, cover.provider, cover.number, cover.status, cover.status === 'none' ? null : new Date()]
       );
       return u.rows[0];
     });
@@ -83,7 +90,10 @@ router.post('/login', loginLimiter, async (req, res) => {
   const user = rows[0];
   const ok = await bcrypt.compare(password, user ? user.password_hash : DUMMY_HASH);
 
-  if (!user || !ok) return res.status(401).json({ error: 'Incorrect e-mail or password.' });
+  if (!user || !ok) {
+    await audit(req, { user: {}, action: 'login_failed', entity: 'account', details: `E-mail tried: ${email.slice(0, 80)}` });
+    return res.status(401).json({ error: 'Incorrect e-mail or password.' });
+  }
   if (!user.is_active) return res.status(403).json({ error: 'This account has been disabled. Contact the hospital administrator.' });
 
   // Password is correct. Make sure they are using the sign-in page for THEIR role.
@@ -94,6 +104,7 @@ router.post('/login', loginLimiter, async (req, res) => {
 
   await query('UPDATE users SET last_login = NOW() WHERE id = $1', [user.id]);
   await startSession(req, user);
+  if (user.role !== 'patient') await audit(req, { action: 'login', entity: 'account', details: `Signed in to the ${user.role} portal` });
   res.json({ role: user.role, redirect: HOME[user.role] });
 });
 

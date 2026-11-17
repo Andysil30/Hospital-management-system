@@ -7,7 +7,7 @@
 // ---------------------------------------------------------------------
 const { query } = require('../db');
 
-const HOME = { admin: '/admin', doctor: '/doctor', patient: '/patient' };
+const HOME = { admin: '/admin', doctor: '/doctor', patient: '/patient', nurse: '/nurse', lab: '/lab' };
 
 function requireRole(...roles) {
   return (req, res, next) => {

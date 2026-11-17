@@ -3,20 +3,21 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Owner dashboard · Hospital Management System</title>
+  <title>Owner dashboard · AfyaCare Clinic</title>
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
   <link href="/assets/css/style.css" rel="stylesheet">
 </head>
 <body class="role-admin" data-page-i18n="off">
 <div class="app-shell">
   <aside class="sidebar">
-    <a class="brand" href="/admin"><svg class="logo-mark" width="34" height="34" viewBox="0 0 32 32" aria-hidden="true"><rect width="32" height="32" rx="9" fill="#fff"/><path d="M13 7h6v6h6v6h-6v6h-6v-6H7v-6h6z" fill="#c65a3a"/></svg><span><span>Hospital Management</span><small class="d-block" style="font-family:var(--bs-body-font-family);font-size:.72rem;letter-spacing:.08em;text-transform:uppercase;opacity:.7">Owner portal</small></span></a>
+    <a class="brand" href="/admin"><svg class="logo-mark" width="34" height="34" viewBox="0 0 32 32" aria-hidden="true"><rect width="32" height="32" rx="9" fill="#fff"/><path d="M13 7h6v6h6v6h-6v6h-6v-6H7v-6h6z" fill="#c65a3a"/></svg><span><span>AfyaCare Clinic</span><small class="d-block" style="font-family:var(--bs-body-font-family);font-size:.72rem;letter-spacing:.08em;text-transform:uppercase;opacity:.7">Owner portal</small></span></a>
     <div class="side-label">Menu</div>
     <ul class="nav flex-column sidebar-nav" role="tablist">
       <li class="nav-item"><button class="nav-link active" id="t-overview" data-bs-toggle="tab" data-bs-target="#p-overview" type="button" role="tab"><svg class="nav-ico" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/></svg><span>Overview</span></button></li>
       <li class="nav-item"><button class="nav-link" id="t-awards" data-bs-toggle="tab" data-bs-target="#p-awards" type="button" role="tab"><svg class="nav-ico" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 2l3.1 6.3 6.9 1-5 4.9 1.2 6.8L12 17.8 5.8 21l1.2-6.8-5-4.9 6.9-1z"/></svg><span>Doctor awards</span></button></li>
       <li class="nav-item"><button class="nav-link" id="t-pharmacy" data-bs-toggle="tab" data-bs-target="#p-pharmacy" type="button" role="tab"><svg class="nav-ico" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10.5 20.5a5 5 0 0 1-7-7l9-9a5 5 0 0 1 7 7z"/><path d="M8.5 8.5l7 7"/></svg><span>Pharmacy</span></button></li>
       <li class="nav-item"><button class="nav-link" id="t-staff" data-bs-toggle="tab" data-bs-target="#p-staff" type="button" role="tab"><svg class="nav-ico" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.9M16 3.1a4 4 0 0 1 0 7.8"/></svg><span>Staff</span></button></li>
+      <li class="nav-item"><button class="nav-link" id="t-audit" data-bs-toggle="tab" data-bs-target="#p-audit" type="button" role="tab"><svg class="nav-ico" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 2l8 3v6c0 5-3.5 9-8 11-4.5-2-8-6-8-11V5z"/><path d="M9 12l2 2 4-4"/></svg><span>Security log</span></button></li>
     </ul>
     <div class="sidebar-foot">
       <button class="nav-link" data-action="logout"><svg class="nav-ico" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4M16 17l5-5-5-5M21 12H9"/></svg><span>Log out</span></button>
@@ -59,6 +60,23 @@
           </div>
         </div>
         <div class="chart-box"><canvas id="revenueChart" aria-label="Revenue chart" role="img"></canvas></div>
+      </div>
+
+      <div class="row g-4 mb-4">
+        <div class="col-lg-7">
+          <div class="panel h-100">
+            <h2>Peak booking hours</h2>
+            <div class="panel-sub">When appointments are booked to start (last 90 days). The busiest hours are highlighted.</div>
+            <div class="chart-box short"><canvas id="hoursChart" aria-label="Appointments by hour" role="img"></canvas></div>
+          </div>
+        </div>
+        <div class="col-lg-5">
+          <div class="panel h-100">
+            <h2>Top performing doctors</h2>
+            <div class="panel-sub">Patients seen in the last 30 days. Hover for revenue and rating.</div>
+            <div class="chart-box short"><canvas id="performersChart" aria-label="Top doctors by patients seen" role="img"></canvas></div>
+          </div>
+        </div>
       </div>
 
       <div class="row g-4">
@@ -134,6 +152,29 @@
       </div>
     </div>
 
+    <!-- ============ SECURITY LOG ============ -->
+    <div class="tab-pane fade" id="p-audit" role="tabpanel">
+      <div class="panel mb-3">
+        <h2>Security log</h2>
+        <div class="panel-sub">Who looked at or changed patient records, and when. Entries cannot be edited or deleted.</div>
+        <div class="row g-2">
+          <div class="col-md-5"><input class="form-control" id="au-q" type="search" placeholder="Search a person, patient or detail..." aria-label="Search the log"></div>
+          <div class="col-md-4"><select class="form-select" id="au-action" aria-label="Action"><option value="">All actions</option></select></div>
+          <div class="col-md-3"><select class="form-select" id="au-role" aria-label="Role"><option value="">All roles</option><option value="doctor">Doctor</option><option value="nurse">Nurse</option><option value="lab">Laboratory</option><option value="patient">Patient</option><option value="admin">Owner</option></select></div>
+        </div>
+      </div>
+      <div class="panel">
+        <div class="table-wrap"><table class="table align-middle mb-0">
+          <thead><tr><th>When</th><th>Who</th><th>What happened</th><th>Patient</th><th>Details</th><th>From</th></tr></thead>
+          <tbody id="au-table"></tbody></table></div>
+        <div class="d-flex justify-content-between align-items-center mt-3">
+          <button class="btn btn-sm btn-outline-primary" data-action="au-prev">Previous</button>
+          <span class="small text-muted" id="au-pager"></span>
+          <button class="btn btn-sm btn-outline-primary" data-action="au-next">Next</button>
+        </div>
+      </div>
+    </div>
+
     <!-- ============ STAFF ============ -->
     <div class="tab-pane fade" id="p-staff" role="tabpanel">
       <div class="panel mb-4">
@@ -188,6 +229,18 @@
               <div class="col-12"><label class="form-label mb-0" for="p-phone">Phone (optional)</label><input class="form-control" id="p-phone" type="tel"></div>
               <div class="col-12 mt-3"><button class="btn btn-primary" type="submit">Add person</button></div>
             </form>
+          </div>
+          <div class="panel mb-4">
+            <h2>Nurse and laboratory logins</h2>
+            <div class="panel-sub">Nurses record vitals at triage. Laboratory technicians enter test results. Use a valid e-mail and a password of at least 8 characters.</div>
+            <form id="sl-form" class="row g-2 mb-3" novalidate>
+              <div class="col-12"><label class="form-label mb-0" for="sl-name">Full name</label><input class="form-control" id="sl-name" required></div>
+              <div class="col-12"><label class="form-label mb-0" for="sl-email">E-mail (their login)</label><input class="form-control" id="sl-email" type="email" placeholder="example@gmail.com" autocomplete="off" required></div>
+              <div class="col-7"><label class="form-label mb-0" for="sl-pass">Password</label><input class="form-control" id="sl-pass" type="text" minlength="8" autocomplete="off" required></div>
+              <div class="col-5"><label class="form-label mb-0" for="sl-role">Role</label><select class="form-select" id="sl-role"><option value="nurse">Nurse</option><option value="lab">Laboratory</option></select></div>
+              <div class="col-12 mt-2"><button class="btn btn-primary" type="submit">Create login</button></div>
+            </form>
+            <div class="table-wrap"><table class="table align-middle mb-0"><thead><tr><th>Name</th><th>Role</th><th>Status</th><th></th></tr></thead><tbody id="sl-table"></tbody></table></div>
           </div>
           <div class="panel">
             <h2>Add a department</h2>

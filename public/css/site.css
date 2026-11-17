@@ -122,7 +122,7 @@ html { scroll-padding-top: 5rem; scroll-behavior: smooth; }
 .auth-note { color: var(--muted); font-size: .88rem; margin: 1.5rem 0 0; padding-top: 1.25rem; border-top: 1px solid var(--line); }
 .switch-portals { margin-top: 1.5rem; font-size: .88rem; color: var(--muted); }
 .switch-portals a { display: inline-block; margin: .15rem .6rem .15rem 0; font-weight: 700; text-decoration: none; }
-.portal-patient [data-portal-link="patient"], .portal-doctor [data-portal-link="doctor"], .portal-owner [data-portal-link="owner"] { display: none; }
+.portal-nurse [data-portal-link="nurse"], .portal-lab [data-portal-link="lab"], .portal-patient [data-portal-link="patient"], .portal-doctor [data-portal-link="doctor"], .portal-owner [data-portal-link="owner"] { display: none; }
 body:not(.portal-patient) [data-only="patient"] { display: none !important; }
 
 /* Segmented "Sign in / New patient" switch (patient page only) */
@@ -154,12 +154,14 @@ body:not(.portal-patient) [data-only="patient"] { display: none !important; }
 body.public {
   --paper: #f4f8fc; --surface: #ffffff; --ink: #0f2742; --muted: #5d7089; --line: #dfe8f2;
   --primary: #1d74d6; --primary-dark: #145aa8; --primary-soft: #e2effc; --bs-primary-rgb: 29, 116, 214;
-  --accent: #0b8a6f; --accent-soft: #dcf6ee; --mint: #35c9a0; --bs-link-color: #1d74d6;
+  --accent: #0b8a6f; --accent-soft: #dcf6ee; --mint: #35c9a0; --bs-link-color: #1d74d6; --muted: #475569;
   background: var(--paper); color: var(--ink);
 }
 /* Each sign-in page keeps its own colour inside the same family */
 body.public.portal-patient { --role: #1d74d6; --role-dark: #0f4f9a; }
 body.public.portal-doctor  { --role: #0e9f8e; --role-dark: #0a6f65; --primary: #0e8f80; --primary-dark: #0a6f65; --primary-soft: #d9f3ef; --bs-primary-rgb: 14, 143, 128; }
+body.public.portal-nurse   { --role: #6d46c0; --role-dark: #4b2d91; --primary: #6d46c0; --primary-dark: #4b2d91; --primary-soft: #ebe4f8; --bs-primary-rgb: 109, 70, 192; }
+body.public.portal-lab     { --role: #b4570f; --role-dark: #7d3a07; --primary: #b4570f; --primary-dark: #7d3a07; --primary-soft: #f8e9d9; --bs-primary-rgb: 180, 87, 15; }
 body.public.portal-owner   { --role: #243b6b; --role-dark: #16264a; --primary: #243b6b; --primary-dark: #16264a; --primary-soft: #e2e8f5; --bs-primary-rgb: 36, 59, 107; }
 body.public .auth-side::after { background: var(--mint); opacity: .25; }
 body.public .auth-side { background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120'%3E%3Cpath d='M54 40h12v14h14v12H66v14H54V66H40V54h14z' fill='%23ffffff' fill-opacity='0.05'/%3E%3C/svg%3E"), linear-gradient(155deg, var(--role) 0%, var(--role-dark) 85%); }
@@ -185,7 +187,7 @@ body.public .dot-patient { background: #1d74d6; } body.public .dot-doctor { back
 .pub-hero .row { align-items: center; min-height: 70vh; }
 .pub-hero .eyebrow { color: var(--primary); background: var(--primary-soft); }
 .pub-hero h1 { font-size: clamp(2.3rem, 4.8vw, 3.8rem); line-height: 1.06; letter-spacing: -.01em; margin-bottom: 1.1rem; max-width: 15ch; }
-.pub-hero .lead { color: var(--muted); font-size: 1.15rem; max-width: 46ch; margin-bottom: 1.8rem; }
+.pub-hero .lead { color: #475569; font-size: 1.28rem; line-height: 1.55; max-width: 46ch; margin-bottom: 1.8rem; }
 .btn-gradient { color: #fff; border: 0; background: linear-gradient(135deg, #1d74d6 0%, #0b8a6f 100%); }
 .btn-gradient:hover { color: #fff; filter: brightness(.94); }
 .pub-hero .btn-outline-primary { --bs-btn-color: var(--primary); --bs-btn-border-color: var(--primary); --bs-btn-hover-bg: var(--primary); --bs-btn-hover-border-color: var(--primary); }
@@ -218,3 +220,11 @@ body.public .doc-card .hours { background: #f1f6fb; }
 
 body.public .site-foot { background: #0f2742; padding: 2.2rem 0; }
 body.public .site-foot .emerg { border-left-color: var(--mint); background: rgba(255,255,255,.08); }
+
+body.public .dot-nurse { background: #6d46c0; } body.public .dot-lab { background: #b4570f; }
+/* Verify page */
+.verify-card { max-width: 720px; margin: 0 auto; background: #fff; border: 1px solid var(--line); border-radius: 18px; padding: 1.6rem; box-shadow: 0 10px 30px rgba(15,39,66,.08); }
+.verify-banner { display: flex; align-items: center; gap: .9rem; border-radius: 12px; padding: 1rem 1.2rem; margin-bottom: 1.2rem; font-weight: 700; }
+.verify-banner.ok { background: #dcf6ee; color: #0a6e57; } .verify-banner.bad { background: #fde4e1; color: #a1281f; }
+.verify-banner .mark { width: 2.4rem; height: 2.4rem; border-radius: 50%; display: grid; place-items: center; background: currentColor; flex: none; }
+.verify-banner .mark span { color: #fff; font-size: 1.2rem; }

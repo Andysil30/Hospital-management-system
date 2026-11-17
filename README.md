@@ -265,6 +265,21 @@ Receptionist role; SMS/e-mail reminders; printing prescriptions as PDF; lab resu
 
 **Confirm details before registering.** After the form, a patient sees a review screen listing every detail, must tick "I confirm that the details above are correct", and only then is the account created. The server also refuses any registration without that confirmation, so it cannot be skipped.
 
+## Stage 11h: AfyaCare Clinic: clinical workflow, payments, analytics and security log
+
+The system is now called **AfyaCare Clinic** (the words "Hospital Management System" stay as a subtitle). New in this stage:
+
+* **Nurse portal** (`/login/nurse`): a triage queue of today's patients. The nurse records blood pressure, temperature, pulse, weight and oxygen saturation. These appear on the doctor's screen in the consultation window, and recording them checks the patient in.
+* **Laboratory portal** (`/login/lab`) and the lab loop: the doctor requests tests (22 are built in); the patient shows as **Awaiting lab**; the technician enters a result and marks it normal or abnormal; when the last test is done the patient returns to the doctor's queue and a "Lab results are ready" alert appears on the doctor's dashboard. The doctor cannot complete the visit while results are pending. The patient sees the results under "History and prescriptions". Lab fees count as revenue.
+* **PDF prescription with a QR code.** Doctors and patients can download a PDF of any visit's prescription. The QR code opens `/verify/<code>`, a public page that confirms the prescription is genuine (it shows only the patient's first name and last initial).
+* **M-Pesa payment (SIMULATION).** After booking, or from "My appointments", the patient can "Pay with M-Pesa": a phone-number step, a 3-second "enter your PIN" screen and a receipt (the code starts with SIM). **No money moves.** A real version needs Safaricom's Daraja API. A visit paid this way is not charged again when the doctor completes it.
+* **Insurance / SHA cover (SIMULATION).** Patients can add cover when they register, or later under "My appointments". The "verification" is a demonstration (a member number of 8 or more characters counts as verified). The doctor sees the cover status. A real check needs an agreement with the Social Health Authority or the insurer.
+* **SMS / WhatsApp reminders (SIMULATION).** Booking creates a confirmation with the patient's queue number and directions, stored as a mock message that the patient can read (and turn off). **Nothing is really sent.** Set `CLINIC_DIRECTIONS` (or `HOSPITAL_ADDRESS`) in `.env` to change the directions.
+* **Owner analytics.** The Overview now also shows peak booking hours and top performing doctors (patients seen, with revenue and rating on hover); the revenue chart has a Laboratory line.
+* **Security log** (owner's sidebar): who viewed or changed patient information, when, from which address, including failed sign-ins. Searchable, filterable and paged. It is append-only: no screen or route can edit or delete entries.
+* The owner's Staff tab can create **nurse and laboratory logins** (valid e-mail, password of 8 or more characters).
+* **Updating an existing database:** run `npm install` (adds the PDF and QR libraries) and `npm run db:init` (adds the new tables safely; your data is kept). Demo accounts `nurse@hospital.test / Nurse@123` and `lab@hospital.test / Lab@12345` come from `npm run db:seed`; on a real or online database create them in the Staff tab instead.
+
 ## Stage 11g: Simple front page, separate public pages and a new palette
 
 * The **front page** (`/`) is now deliberately simple: a menu (Home, Departments, Our doctors, Sign in) and a hero with a picture of a doctor. Nothing else.

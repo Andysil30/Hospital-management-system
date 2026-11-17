@@ -58,9 +58,12 @@ $('#dept-filter').addEventListener('change', () => loadDoctors().catch((e) => to
 const bookModal = new bootstrap.Modal('#bookModal');
 const bDate = $('#b-date');
 let chosenTime = null;
+let bookDoctor = null;
+let lastBooked = null;
 
 actions.book = (btn) => {
   const d = doctors.find((x) => x.id === Number(btn.dataset.id));
+  bookDoctor = d;
   $('#bookTitle').textContent = t('book.with', { name: d.full_name });
   $('#b-doctor').value = d.id;
   $('#b-reason').value = '';
@@ -93,21 +96,82 @@ actions['pick-slot'] = (btn) => {
   $('#b-confirm').disabled = false;
 };
 
+const bookedModal = new bootstrap.Modal('#bookedModal');
+
+function bubbles(messages) {
+  return messages.map((m) => `<div class="${m.channel === 'whatsapp' ? 'wa-bubble' : 'sms-bubble'}"><span class="ch">${m.channel === 'whatsapp' ? 'WhatsApp' : 'SMS'}</span>${esc(m.message)}</div>`).join('');
+}
+
+function showBooked(r) {
+  lastBooked = { id: r.id, fee: r.fee, doctor: bookDoctor ? bookDoctor.full_name : '' };
+  $('#booked-queue').textContent = t('booked.queue', { n: r.queue_no });
+  $('#booked-msg-title').textContent = r.messages.length ? t('booked.msg') : t('booked.msg.off');
+  $('#booked-msgs').innerHTML = bubbles(r.messages);
+  $('#booked-pay').classList.toggle('d-none', !(r.fee > 0));
+  bookedModal.show();
+}
+
 $('#book-form').addEventListener('submit', (e) => {
   e.preventDefault();
   if (!chosenTime) return;
   run($('#b-confirm'), async () => {
+    let booked;
     try {
-      await api('/patient/appointments', { method: 'POST', body: {
+      booked = await api('/patient/appointments', { method: 'POST', body: {
         doctor_id: $('#b-doctor').value, date: bDate.value, time: chosenTime, reason: $('#b-reason').value } });
     } catch (err) {
       await loadSlots(); // somebody else may have taken the slot - refresh the list
       throw err;
     }
     bookModal.hide();
-    toast(t('toast.booked'));
+    showBooked(booked);
     bootstrap.Tab.getOrCreateInstance($('#t-appts')).show();
   });
+});
+actions['pay-from-booked'] = () => { bookedModal.hide(); if (lastBooked) openPay(lastBooked); };
+
+// ===================== M-PESA (SIMULATION) =====================
+const payModal = new bootstrap.Modal('#payModal');
+let payTarget = null;
+const showPayStep = (step) => {
+  ['form', 'wait', 'done'].forEach((x) => $('#pay-step-' + x).classList.toggle('d-none', x !== step));
+  $('#pay-footer').classList.toggle('d-none', step !== 'done');
+};
+
+function openPay(info) {
+  payTarget = info;
+  $('#pay-amount').textContent = money(info.fee);
+  $('#pay-for').textContent = t('pay.for', { name: info.doctor });
+  $('#pay-error').classList.add('d-none');
+  showPayStep('form');
+  payModal.show();
+}
+actions['pay-open'] = (btn) => openPay({ id: Number(btn.dataset.id), fee: Number(btn.dataset.fee), doctor: btn.dataset.doctor });
+
+$('#pay-form').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const phone = $('#pay-phone').value.trim();
+  if (!/^(?:\+?254|0)[17]\d{8}$/.test(phone.replace(/[\s-]/g, ''))) {
+    $('#pay-error').textContent = tr('Enter a valid Safaricom number, for example 0712 345 678.');
+    return $('#pay-error').classList.remove('d-none');
+  }
+  // The "STK push": the phone asks for the PIN. We pretend to wait 3 seconds for it.
+  $('#pay-wait-text').textContent = t('pay.wait.d', { amount: money(payTarget.fee) });
+  showPayStep('wait');
+  await new Promise((r) => setTimeout(r, 3000));
+  try {
+    const r = await api(`/patient/appointments/${payTarget.id}/pay-mpesa`, { method: 'POST', body: { phone } });
+    $('#pay-receipt').innerHTML = [
+      [t('pay.receipt'), r.receipt], [t('pay.amount'), money(r.amount)], [t('pay.for', { name: r.doctor }), `${fmtDate(r.date)} ${r.time}`],
+      ['M-Pesa', r.phone], [t('th.date'), new Date(r.paid_at).toLocaleString(dateLocale(), { dateStyle: 'medium', timeStyle: 'short' })],
+    ].map(([k, v]) => `<div><dt>${esc(k)}</dt><dd>${esc(v)}</dd></div>`).join('');
+    showPayStep('done');
+    loadAppointments().catch(() => {});
+  } catch (err) {
+    $('#pay-error').textContent = err.message;
+    $('#pay-error').classList.remove('d-none');
+    showPayStep('form');
+  }
 });
 
 // ===================== MY APPOINTMENTS =====================
@@ -121,11 +185,56 @@ async function loadAppointments() {
       : `<button class="btn btn-sm btn-outline-primary" data-action="feedback" data-id="${a.id}" data-doctor="${esc(a.doctor)}">${esc(t('btn.rate'))}</button>`;
     const queue = a.ahead_in_queue != null
       ? `<div class="small text-muted">${esc(a.ahead_in_queue === 0 ? t('q.next') : t('q.ahead', { n: a.ahead_in_queue }))}</div>` : '';
+    const pay = a.paid
+      ? `<span class="chip ok">${esc(t('pay.paid'))}</span><div class="small text-muted">${esc(a.receipt || '')}</div>`
+      : a.can_pay ? `<button class="btn btn-sm btn-mpesa" data-action="pay-open" data-id="${a.id}" data-fee="${a.fee}" data-doctor="${esc(a.doctor)}">${esc(t('pay.btn'))} · ${money(a.fee)}</button>` : '<span class="text-muted">-</span>';
     return `<tr><td>${fmtDate(a.date)}</td><td>${esc(a.time)}</td>
       <td>${esc(a.doctor)}<div class="small text-muted">${esc(a.department)}</div></td>
-      <td>${chip(a.status)}${queue}</td><td class="text-end">${action}</td></tr>`;
-  }).join('') || `<tr><td colspan="5">${empty(t('empty.appts'))}</td></tr>`;
+      <td>${chip(a.status)}${queue}</td><td>${pay}</td><td class="text-end">${action}</td></tr>`;
+  }).join('') || `<tr><td colspan="6">${empty(t('empty.appts'))}</td></tr>`;
+  loadCover().catch(() => {});
+  loadMessages().catch(() => {});
 }
+
+// ---------- Insurance / SHA cover ----------
+let coverInfo = null;
+const maskNo = (n) => (n ? '\u2022'.repeat(Math.max(0, String(n).length - 3)) + String(n).slice(-3) : '');
+
+async function loadCover() {
+  coverInfo = await api('/patient/cover');
+  const c = coverInfo;
+  const status = c.status === 'verified' ? `<span class="chip ok">${esc(t('cover.verified'))}</span>` : c.status === 'not_found' ? `<span class="chip bad">${esc(t('cover.notfound'))}</span>` : '';
+  $('#cover-box').innerHTML = `${c.provider ? `<div class="fw-semibold">${esc(c.provider)}</div><div class="text-muted small mb-2">${esc(maskNo(c.number))} ${status}</div>` : `<p class="text-muted">${esc(t('cover.none'))}</p>`}
+    <button class="btn btn-sm btn-outline-primary" data-action="cover-open">${esc(t('cover.update'))}</button>`;
+}
+
+const coverModal = new bootstrap.Modal('#coverModal');
+actions['cover-open'] = () => {
+  $('#cv-provider').innerHTML = `<option value="">${esc(t('f.cover.none'))}</option>` + coverInfo.providers.map((p) => `<option>${esc(p)}</option>`).join('');
+  $('#cv-provider').value = coverInfo.provider || '';
+  $('#cv-number').value = coverInfo.number || '';
+  coverModal.show();
+};
+$('#cover-form').addEventListener('submit', (e) => {
+  e.preventDefault();
+  run($('button[type=submit]', e.target), async () => {
+    await api('/patient/cover', { method: 'PUT', body: { provider: $('#cv-provider').value, number: $('#cv-number').value } });
+    coverModal.hide();
+    toast(t('cover.saved'));
+    await loadCover();
+  });
+});
+
+// ---------- Mock SMS / WhatsApp messages ----------
+async function loadMessages() {
+  const r = await api('/patient/messages');
+  $('#rem-toggle').checked = r.reminders;
+  $('#msg-list').innerHTML = r.messages.map((m) => bubbles([m]) + `<div class="msg-time mb-2">${esc(new Date(m.created_at).toLocaleString(dateLocale(), { dateStyle: 'medium', timeStyle: 'short' }))}</div>`).join('')
+    || empty(t('msg.empty'));
+}
+$('#rem-toggle').addEventListener('change', (e) => {
+  api('/patient/reminders', { method: 'PUT', body: { enabled: e.target.checked } }).catch((err) => toast(err.message, 'error'));
+});
 
 actions.cancel = (btn) => {
   if (!confirm(t('confirm.cancel'))) return;
@@ -162,11 +271,15 @@ $('#fb-form').addEventListener('submit', (e) => {
 const rxLine = (p) => `${esc(p.medicine)}: ${esc(p.dosage)}, ${esc(p.frequency)}, ${esc(t('days.n', { n: p.duration_days }))}`;
 
 async function loadHistory() {
-  const [visits, rx] = await Promise.all([api('/patient/history'), api('/patient/prescriptions')]);
+  const [visits, rx, labs] = await Promise.all([api('/patient/history'), api('/patient/prescriptions'), api('/patient/lab-results')]);
+  $('#lab-list').innerHTML = labs.map((l) => `<div class="py-2 border-bottom"><div class="d-flex justify-content-between"><strong>${esc(l.test)}</strong>
+      ${l.status === 'requested' ? `<span class="chip awaiting_lab">${esc(t('lab.pending'))}</span>` : (l.result_flag === 'abnormal' ? `<span class="chip bad">${esc(t('lab.abnormal'))}</span>` : `<span class="chip ok">${esc(t('lab.normal'))}</span>`)}</div>
+      <div class="small text-muted">${fmtDate(l.date)} · ${esc(l.doctor)}</div>${l.result_text ? `<div class="small">${esc(l.result_text)}</div>` : ''}</div>`).join('') || empty(t('lab.empty'));
   $('#visit-list').innerHTML = visits.map((v) => `
     <div class="visit"><div class="when">${fmtDate(v.date)} · ${esc(v.doctor)} · ${esc(v.department)}</div>
       <div><strong>${esc(v.diagnosis)}</strong></div>${v.notes ? `<div class="small">${esc(v.notes)}</div>` : ''}
       ${v.prescriptions.map((p) => `<div class="rx-line">${rxLine(p)}</div>`).join('')}
+      ${v.prescriptions.length ? `<a class="small d-inline-block mt-1" href="/api/patient/records/${v.id}/prescription.pdf" target="_blank" rel="noopener">${esc(t('rx.pdf'))}</a>` : ''}
     </div>`).join('') || empty(t('empty.visits'));
   $('#rx-list').innerHTML = rx.map((p) => `
     <div class="py-2 border-bottom"><div class="d-flex justify-content-between"><strong>${esc(p.medicine)}</strong>
